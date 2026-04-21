@@ -1,0 +1,12 @@
+{
+  "release-type": "go",
+  "packages": {
+    ".": {
+      "package-name": "octopus-agile-bot",
+      "include-component-in-tag": false,
+      "changelog-path": "CHANGELOG.md"
+    }
+  },
+  "bootstrap-sha": "0000000000000000000000000000000000000000",
+  "pull-request-title-pattern": "chore: release ${version}"
+}

@@ -1,0 +1,17 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd         = "go build -o ./tmp/bot ./cmd/bot"
+  bin         = "./tmp/bot"
+  include_ext = ["go", "sql"]
+  exclude_dir = ["tmp", "dist", "data"]
+  exclude_regex = ["_test\\.go$"]
+  delay       = 1000
+  kill_delay  = 500
+
+[log]
+  time = false
+
+[misc]
+  clean_on_exit = true

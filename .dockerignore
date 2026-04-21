@@ -1,0 +1,16 @@
+.git
+.github
+.idea
+.vscode
+*.md
+Dockerfile*
+docker-compose*.yml
+Makefile
+.air.toml
+.golangci.yml
+tmp/
+dist/
+data/
+*.db
+*.db-*
+coverage.txt
