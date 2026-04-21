@@ -1,0 +1,28 @@
+# Binaries
+/bot
+/tmp/
+/dist/
+
+# Go
+*.test
+*.out
+coverage.txt
+
+# Local config / secrets
+.env
+*.local.env
+config.yaml
+config.local.*
+
+# Data
+/data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Editors
+.idea/
+.vscode/
+*.swp
+.DS_Store
