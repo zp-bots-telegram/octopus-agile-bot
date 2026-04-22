@@ -49,39 +49,39 @@
 </script>
 
 {#if !session.me}
-	<p>Not signed in. <a class="text-blue-600 underline" href="/login">Sign in →</a></p>
+	<p>Not signed in. <a class="text-primary-600 dark:text-primary-400 underline" href="/login">Sign in →</a></p>
 {:else if !region}
-	<section class="rounded-lg border border-slate-200 bg-white p-6">
+	<section class="rounded-lg border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-6">
 		<h2 class="mb-2 text-lg font-semibold">Welcome!</h2>
-		<p class="mb-4 text-slate-600">
+		<p class="mb-4 text-dark/80 dark:text-light/80">
 			Set your DNO region before we can find cheap slots for you.
 		</p>
 		<a
 			href="/settings"
-			class="inline-block rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+			class="inline-block rounded bg-primary-600 px-4 py-2 text-white hover:bg-primary-700"
 			>Go to Settings</a
 		>
 	</section>
 {:else}
-	<section class="mb-6 rounded-lg border border-slate-200 bg-white p-6">
+	<section class="mb-6 rounded-lg border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-6">
 		<div class="mb-4 flex items-baseline justify-between">
 			<h2 class="text-lg font-semibold">
 				Region {region.region} — {region.region_name}
 			</h2>
-			<a href="/settings" class="text-sm text-slate-500 hover:underline">Change</a>
+			<a href="/settings" class="text-sm text-dark/60 dark:text-light/60 hover:underline">Change</a>
 		</div>
 
 		<div class="flex items-end gap-3">
 			<label class="flex flex-col text-sm">
-				<span class="text-slate-600">Window length</span>
+				<span class="text-dark/80 dark:text-light/80">Window length</span>
 				<input
-					class="mt-1 rounded border border-slate-300 px-2 py-1"
+					class="mt-1 rounded border border-light-300 dark:border-dark-300 px-2 py-1"
 					bind:value={duration}
 					placeholder="3h"
 				/>
 			</label>
 			<button
-				class="rounded bg-blue-600 px-4 py-1.5 text-white hover:bg-blue-700"
+				class="rounded bg-primary-600 px-4 py-1.5 text-white hover:bg-primary-700"
 				onclick={loadCheapest}
 			>
 				Find cheapest
@@ -89,28 +89,28 @@
 		</div>
 
 		{#if cheapestError}
-			<p class="mt-3 text-sm text-red-600">{cheapestError}</p>
+			<p class="mt-3 text-sm text-danger-700 dark:text-danger-400">{cheapestError}</p>
 		{:else if cheapest}
-			<div class="mt-4 rounded bg-slate-50 p-4 text-sm">
+			<div class="mt-4 rounded bg-light-100 dark:bg-dark-100 p-4 text-sm">
 				<p class="font-medium">
 					Cheapest {duration} window: {new Date(cheapest.start).toLocaleString()} →
 					{new Date(cheapest.end).toLocaleTimeString()}
 				</p>
-				<p class="text-slate-600">
+				<p class="text-dark/80 dark:text-light/80">
 					Mean {cheapest.mean_inc_vat_p_per_kwh.toFixed(2)} p/kWh (inc VAT)
 				</p>
 			</div>
 		{/if}
 	</section>
 
-	<section class="rounded-lg border border-slate-200 bg-white p-6">
+	<section class="rounded-lg border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-6">
 		<h2 class="mb-4 text-lg font-semibold">Published rates</h2>
 		{#if chartError}
-			<p class="text-sm text-red-600">{chartError}</p>
+			<p class="text-sm text-danger-700 dark:text-danger-400">{chartError}</p>
 		{:else if slots.length > 0}
 			<RateChart {slots} />
 		{:else}
-			<p class="text-sm text-slate-500">No rates yet.</p>
+			<p class="text-sm text-dark/60 dark:text-light/60">No rates yet.</p>
 		{/if}
 	</section>
 {/if}

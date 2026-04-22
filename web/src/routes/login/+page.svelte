@@ -39,18 +39,18 @@
 
 <section class="mt-12 text-center">
 	<h1 class="mb-2 text-3xl font-bold">Octopus Agile Bot</h1>
-	<p class="mb-8 text-slate-600">
+	<p class="mb-8 text-dark/80 dark:text-light/80">
 		Find the cheapest times to use lots of electricity. Log in with the same Telegram
 		account you use to chat with the bot.
 	</p>
 
 	{#if session.loaded && session.me}
-		<p>Already signed in. <a class="text-blue-600 underline" href="/">Go home →</a></p>
+		<p>Already signed in. <a class="text-primary-600 dark:text-primary-400 underline" href="/">Go home →</a></p>
 	{:else}
 		<div class="flex flex-col items-center gap-4">
 			<div bind:this={widgetContainer}></div>
 			{#if error}
-				<p class="text-sm text-red-600">Login failed: {error}</p>
+				<p class="text-sm text-danger-700 dark:text-danger-400">Login failed: {error}</p>
 			{/if}
 		</div>
 	{/if}

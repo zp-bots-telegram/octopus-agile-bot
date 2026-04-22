@@ -52,16 +52,16 @@
 <h2 class="mb-4 text-xl font-semibold">Charge plans</h2>
 
 {#if error}
-	<p class="mb-4 text-sm text-red-600">{error}</p>
+	<p class="mb-4 text-sm text-danger-700 dark:text-danger-400">{error}</p>
 {/if}
 
-<section class="mb-6 rounded-lg border border-slate-200 bg-white p-4">
+<section class="mb-6 rounded-lg border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-4">
 	<h3 class="mb-3 font-semibold">Add a plan</h3>
 	<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
 		<label class="text-sm">
-			<span class="text-slate-600">Duration (minutes)</span>
+			<span class="text-dark/80 dark:text-light/80">Duration (minutes)</span>
 			<input
-				class="mt-1 w-full rounded border border-slate-300 px-2 py-1"
+				class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 px-2 py-1"
 				type="number"
 				min="30"
 				step="30"
@@ -69,50 +69,50 @@
 			/>
 		</label>
 		<label class="text-sm">
-			<span class="text-slate-600">Earliest start (HH:MM)</span>
+			<span class="text-dark/80 dark:text-light/80">Earliest start (HH:MM)</span>
 			<input
-				class="mt-1 w-full rounded border border-slate-300 px-2 py-1"
+				class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 px-2 py-1"
 				bind:value={start}
 				placeholder="22:00"
 			/>
 		</label>
 		<label class="text-sm">
-			<span class="text-slate-600">Latest end (HH:MM)</span>
+			<span class="text-dark/80 dark:text-light/80">Latest end (HH:MM)</span>
 			<input
-				class="mt-1 w-full rounded border border-slate-300 px-2 py-1"
+				class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 px-2 py-1"
 				bind:value={end}
 				placeholder="07:00"
 			/>
 		</label>
 		<button
-			class="self-end rounded bg-blue-600 px-4 py-1.5 text-white hover:bg-blue-700"
+			class="self-end rounded bg-primary-600 px-4 py-1.5 text-white hover:bg-primary-700"
 			onclick={create}
 		>
 			Add
 		</button>
 	</div>
-	<p class="mt-2 text-xs text-slate-500">
+	<p class="mt-2 text-xs text-dark/60 dark:text-light/60">
 		End earlier than start means overnight (e.g. 22:00–07:00 = 9h window crossing midnight).
 	</p>
 </section>
 
 <section>
 	{#if plans.length === 0}
-		<p class="text-slate-600">No charge plans yet.</p>
+		<p class="text-dark/80 dark:text-light/80">No charge plans yet.</p>
 	{:else}
 		<ul class="space-y-2">
 			{#each plans as p}
-				<li class="flex items-center justify-between rounded border border-slate-200 bg-white p-3">
+				<li class="flex items-center justify-between rounded border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-3">
 					<div>
 						<p class="font-medium">
 							#{p.ID} — {humanDuration(p.Duration)} between {p.WindowStartLocal}–{p.WindowEndLocal}
 						</p>
-						<p class="text-sm text-slate-500">
+						<p class="text-sm text-dark/60 dark:text-light/60">
 							{p.Enabled ? 'Active' : 'Paused'}
 						</p>
 					</div>
 					<button
-						class="text-sm text-red-600 hover:underline"
+						class="text-sm text-danger-700 dark:text-danger-400 hover:underline"
 						onclick={() => cancel(p.ID)}
 					>
 						Cancel

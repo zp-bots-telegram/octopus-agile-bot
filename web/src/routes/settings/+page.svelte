@@ -135,52 +135,52 @@
 <h2 class="mb-4 text-xl font-semibold">Settings</h2>
 
 {#if error}
-	<p class="mb-3 text-sm text-red-600">{error}</p>
+	<p class="mb-3 text-sm text-danger-700 dark:text-danger-400">{error}</p>
 {/if}
 {#if saved}
-	<p class="mb-3 text-sm text-green-600">Saved.</p>
+	<p class="mb-3 text-sm text-success-700 dark:text-success-400">Saved.</p>
 {/if}
 
-<section class="rounded-lg border border-slate-200 bg-white p-4">
+<section class="rounded-lg border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-4">
 	<h3 class="mb-2 font-semibold">DNO region</h3>
 	{#if current}
-		<p class="mb-4 text-sm text-slate-600">
+		<p class="mb-4 text-sm text-dark/80 dark:text-light/80">
 			Currently <strong>{current.region}</strong> — {current.region_name}
 		</p>
 	{:else}
-		<p class="mb-4 text-sm text-slate-600">No region set yet.</p>
+		<p class="mb-4 text-sm text-dark/80 dark:text-light/80">No region set yet.</p>
 	{/if}
 
 	<div class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
 		<label class="text-sm">
-			<span class="text-slate-600">Postcode</span>
+			<span class="text-dark/80 dark:text-light/80">Postcode</span>
 			<input
-				class="mt-1 w-full rounded border border-slate-300 px-2 py-1 uppercase"
+				class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 px-2 py-1 uppercase"
 				bind:value={postcode}
 				placeholder="SW1A 1AA"
 			/>
 		</label>
 		<button
-			class="self-end rounded bg-blue-600 px-4 py-1.5 text-white hover:bg-blue-700"
+			class="self-end rounded bg-primary-600 px-4 py-1.5 text-white hover:bg-primary-700"
 			onclick={savePostcode}
 		>
 			Look up
 		</button>
 	</div>
 
-	<details class="text-sm text-slate-600">
+	<details class="text-sm text-dark/80 dark:text-light/80">
 		<summary class="cursor-pointer">…or set the letter directly</summary>
 		<div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
 			<label>
-				<span class="text-slate-600">Letter (A–P)</span>
+				<span class="text-dark/80 dark:text-light/80">Letter (A–P)</span>
 				<input
-					class="mt-1 w-full rounded border border-slate-300 px-2 py-1 uppercase"
+					class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 px-2 py-1 uppercase"
 					bind:value={letter}
 					maxlength="1"
 				/>
 			</label>
 			<button
-				class="self-end rounded border border-slate-300 px-4 py-1.5 hover:bg-slate-50"
+				class="self-end rounded border border-light-300 dark:border-dark-300 px-4 py-1.5 hover:bg-light-100 dark:bg-dark-100"
 				onclick={saveLetter}
 			>
 				Save
@@ -189,18 +189,18 @@
 	</details>
 </section>
 
-<section class="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+<section class="mt-6 rounded-lg border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-4">
 	<h3 class="mb-2 font-semibold">Price alert</h3>
-	<p class="mb-3 text-sm text-slate-600">
+	<p class="mb-3 text-sm text-dark/80 dark:text-light/80">
 		I'll message you ~10 minutes before a half-hour slot drops below this threshold
 		(inc VAT, p/kWh). Use <strong>0</strong> to alert only on negative prices.
 	</p>
 
 	{#if alertError}
-		<p class="mb-2 text-sm text-red-600">{alertError}</p>
+		<p class="mb-2 text-sm text-danger-700 dark:text-danger-400">{alertError}</p>
 	{/if}
 	{#if alertSaved}
-		<p class="mb-2 text-sm text-green-600">Saved.</p>
+		<p class="mb-2 text-sm text-success-700 dark:text-success-400">Saved.</p>
 	{/if}
 
 	<p class="mb-3 text-sm">
@@ -214,23 +214,23 @@
 
 	<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto]">
 		<label class="text-sm">
-			<span class="text-slate-600">Threshold (p/kWh)</span>
+			<span class="text-dark/80 dark:text-light/80">Threshold (p/kWh)</span>
 			<input
-				class="mt-1 w-full rounded border border-slate-300 px-2 py-1"
+				class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 px-2 py-1"
 				type="number"
 				step="0.1"
 				bind:value={alertThreshold}
 			/>
 		</label>
 		<button
-			class="self-end rounded bg-blue-600 px-4 py-1.5 text-white hover:bg-blue-700"
+			class="self-end rounded bg-primary-600 px-4 py-1.5 text-white hover:bg-primary-700"
 			onclick={saveAlert}
 		>
 			{alertEnabled ? 'Update' : 'Enable'}
 		</button>
 		{#if alertEnabled}
 			<button
-				class="self-end rounded border border-red-300 px-4 py-1.5 text-red-700 hover:bg-red-50"
+				class="self-end rounded border border-danger-300 dark:border-danger-700 px-4 py-1.5 text-danger-700 dark:text-danger-300 hover:bg-danger-50 dark:hover:bg-danger-900"
 				onclick={disableAlert}
 			>
 				Disable
@@ -239,13 +239,13 @@
 	</div>
 </section>
 
-<section class="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+<section class="mt-6 rounded-lg border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-4">
 	<h3 class="mb-2 font-semibold">Octopus account</h3>
-	<p class="mb-3 text-sm text-slate-600">
+	<p class="mb-3 text-sm text-dark/80 dark:text-light/80">
 		Link your Octopus account to unlock account-scoped features (current tariff,
 		upcoming: consumption history). Find your API key at
 		<a
-			class="text-blue-600 underline"
+			class="text-primary-600 dark:text-primary-400 underline"
 			target="_blank"
 			rel="noreferrer"
 			href="https://octopus.energy/dashboard/new/accounts/personal-details/api-access"
@@ -255,10 +255,10 @@
 	</p>
 
 	{#if octopusError}
-		<p class="mb-2 text-sm text-red-600">{octopusError}</p>
+		<p class="mb-2 text-sm text-danger-700 dark:text-danger-400">{octopusError}</p>
 	{/if}
 	{#if octopusSaved}
-		<p class="mb-2 text-sm text-green-600">Saved.</p>
+		<p class="mb-2 text-sm text-success-700 dark:text-success-400">Saved.</p>
 	{/if}
 
 	{#if octopusLinked}
@@ -269,7 +269,7 @@
 			{/if}
 		</p>
 		<button
-			class="rounded border border-red-300 px-4 py-1.5 text-red-700 hover:bg-red-50"
+			class="rounded border border-danger-300 dark:border-danger-700 px-4 py-1.5 text-danger-700 dark:text-danger-300 hover:bg-danger-50 dark:hover:bg-danger-900"
 			onclick={unlinkOctopus}
 		>
 			Unlink
@@ -277,17 +277,17 @@
 	{:else}
 		<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
 			<label class="text-sm">
-				<span class="text-slate-600">Account number</span>
+				<span class="text-dark/80 dark:text-light/80">Account number</span>
 				<input
-					class="mt-1 w-full rounded border border-slate-300 px-2 py-1 uppercase"
+					class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 px-2 py-1 uppercase"
 					bind:value={octopusAccount}
 					placeholder="A-XXXXXXXX"
 				/>
 			</label>
 			<label class="text-sm">
-				<span class="text-slate-600">API key</span>
+				<span class="text-dark/80 dark:text-light/80">API key</span>
 				<input
-					class="mt-1 w-full rounded border border-slate-300 px-2 py-1"
+					class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 px-2 py-1"
 					type="password"
 					autocomplete="off"
 					bind:value={octopusKey}
@@ -295,7 +295,7 @@
 				/>
 			</label>
 			<button
-				class="self-end rounded bg-blue-600 px-4 py-1.5 text-white hover:bg-blue-700"
+				class="self-end rounded bg-primary-600 px-4 py-1.5 text-white hover:bg-primary-700"
 				onclick={linkOctopus}
 			>
 				Link
