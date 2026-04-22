@@ -182,7 +182,15 @@ func (s *Service) SetRegion(ctx context.Context, chatID int64, region string) er
 	if len(r) != 1 || r[0] < 'A' || r[0] > 'P' {
 		return ErrInvalidRegion
 	}
-	return s.chats.UpsertChatRegion(ctx, chatID, r)
+	if err := s.chats.UpsertChatRegion(ctx, chatID, r); err != nil {
+		return err
+	}
+	// Prime the cache for the new region so /cheapest and the chart work immediately.
+	// Failures are logged but not propagated — the region change itself succeeded.
+	if err := s.refreshRegion(ctx, r); err != nil {
+		s.log.Warn("region refresh failed", "region", r, "err", err)
+	}
+	return nil
 }
 
 // SetRegionByPostcode resolves a UK postcode to a DNO region letter via the Octopus
@@ -196,6 +204,40 @@ func (s *Service) SetRegionByPostcode(ctx context.Context, chatID int64, postcod
 		return "", err
 	}
 	return r, nil
+}
+
+// refreshRegion fetches and upserts Agile rates for a single region — but only if the
+// cache is stale. We skip the Octopus call when we already hold rates for this
+// region that cover at least the current window and the next hour (i.e. there's
+// something forward-looking for the user to see). The daily scheduled refresh
+// backfills beyond this minimum.
+func (s *Service) refreshRegion(ctx context.Context, region string) error {
+	now := s.clock.Now().UTC()
+	have, err := s.rates.Rates(ctx, region, now, now.Add(1*time.Hour))
+	if err != nil {
+		return fmt.Errorf("check cache: %w", err)
+	}
+	if len(have) > 0 {
+		s.log.Debug("region cache already warm", "region", region, "have", len(have))
+		return nil
+	}
+
+	prod, err := s.octopus.LatestAgileProduct(ctx)
+	if err != nil {
+		return fmt.Errorf("latest agile product: %w", err)
+	}
+	from := now.Truncate(30 * time.Minute)
+	to := from.Add(48 * time.Hour)
+	tc := agile.TariffCode(prod.Code, region)
+	rates, err := s.octopus.StandardUnitRates(ctx, prod.Code, tc, from, to)
+	if err != nil {
+		return fmt.Errorf("rates: %w", err)
+	}
+	if err := s.rates.UpsertRates(ctx, region, tc, rates); err != nil {
+		return fmt.Errorf("persist: %w", err)
+	}
+	s.log.Info("region cache warmed", "region", region, "count", len(rates))
+	return nil
 }
 
 // resolveChat returns the chat's stored region/timezone, or synthesises a default chat
