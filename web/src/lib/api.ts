@@ -88,6 +88,12 @@ export const api = {
 			'/api/auth/telegram/callback',
 			p
 		),
+	telegramInitData: (initData: string) =>
+		request<Me & { first_name?: string; username?: string }>(
+			'POST',
+			'/api/auth/telegram/initdata',
+			{ init_data: initData }
+		),
 
 	getRegion: () => request<RegionResp>('GET', '/api/region'),
 	setRegion: (region: string) => request<RegionResp>('PUT', '/api/region', { region }),

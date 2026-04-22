@@ -25,6 +25,7 @@ func (s *Server) routes() {
 	// Public.
 	s.mux.HandleFunc("GET /api/health", s.handleHealth)
 	s.mux.HandleFunc("POST /api/auth/telegram/callback", s.handleTelegramLogin)
+	s.mux.HandleFunc("POST /api/auth/telegram/initdata", s.handleTelegramInitData)
 	s.mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
 
 	// Session-gated.
@@ -89,6 +90,34 @@ func (s *Server) handleTelegramLogin(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.log.Warn("telegram login verify failed", "err", err)
 		writeError(w, http.StatusUnauthorized, "telegram login verification failed")
+		return
+	}
+	if err := s.sessions.Issue(w, data.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not issue session")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"telegram_user_id": data.ID,
+		"first_name":       data.FirstName,
+		"username":         data.Username,
+	})
+}
+
+// handleTelegramInitData exchanges a Telegram Mini App initData string for a
+// session cookie. Front-end calls this with `window.Telegram.WebApp.initData` when
+// running inside Telegram so users don't have to go through the Login Widget.
+func (s *Server) handleTelegramInitData(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		InitData string `json:"init_data"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.InitData == "" {
+		writeError(w, http.StatusBadRequest, "missing init_data")
+		return
+	}
+	data, err := tgauth.VerifyInitData(s.botToken, body.InitData)
+	if err != nil {
+		s.log.Warn("telegram initdata verify failed", "err", err)
+		writeError(w, http.StatusUnauthorized, "initdata verification failed")
 		return
 	}
 	if err := s.sessions.Issue(w, data.ID); err != nil {
