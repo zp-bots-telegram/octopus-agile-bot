@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	// Core / telegram.
 	TelegramBotToken string  `env:"TELEGRAM_BOT_TOKEN,required"`
 	OctopusAPIKey    string  `env:"OCTOPUS_API_KEY,required"`
 	DefaultRegion    string  `env:"DEFAULT_REGION" envDefault:"C"`
@@ -17,6 +18,23 @@ type Config struct {
 	LogFormat        string  `env:"LOG_FORMAT" envDefault:"json"`
 	TZ               string  `env:"TZ" envDefault:"Europe/London"`
 	AllowedChatIDs   []int64 `env:"ALLOWED_CHAT_IDS" envSeparator:","`
+
+	// Web UI. WebBaseURL is the public URL of the web app (used for OAuth callbacks
+	// and Telegram Login Widget registration). HTTPListenAddr is where the Go
+	// process listens. SessionSecret signs web session cookies — must be ≥ 32 bytes
+	// of high-entropy bytes in prod.
+	HTTPListenAddr string `env:"HTTP_LISTEN_ADDR" envDefault:":8080"`
+	WebBaseURL     string `env:"WEB_BASE_URL" envDefault:"http://localhost:8080"`
+	SessionSecret  string `env:"SESSION_SECRET"`
+	EncryptionKey  string `env:"ENCRYPTION_KEY"`
+
+	// Octopus OAuth (phase 2). All optional for now; the OAuth handler is disabled
+	// unless both ClientID and TokenURL are set.
+	OctopusOAuthClientID     string `env:"OCTOPUS_OAUTH_CLIENT_ID"`
+	OctopusOAuthClientSecret string `env:"OCTOPUS_OAUTH_CLIENT_SECRET"`
+	OctopusOAuthAuthorizeURL string `env:"OCTOPUS_OAUTH_AUTHORIZE_URL"`
+	OctopusOAuthTokenURL     string `env:"OCTOPUS_OAUTH_TOKEN_URL"`
+	OctopusOAuthScopes       string `env:"OCTOPUS_OAUTH_SCOPES"`
 }
 
 type Loaded struct {
@@ -42,7 +60,18 @@ func Load() (*Loaded, error) {
 	default:
 		return nil, fmt.Errorf("LOG_FORMAT must be json|text, got %q", c.LogFormat)
 	}
+	if c.SessionSecret != "" && len(c.SessionSecret) < 16 {
+		return nil, fmt.Errorf("SESSION_SECRET must be at least 16 bytes")
+	}
+	if c.EncryptionKey != "" && len(c.EncryptionKey) != 32 {
+		return nil, fmt.Errorf("ENCRYPTION_KEY must be exactly 32 bytes (AES-256)")
+	}
 	return &Loaded{Config: c, Location: loc}, nil
+}
+
+// OctopusOAuthEnabled reports whether enough config is set to run the OAuth flow.
+func (c Config) OctopusOAuthEnabled() bool {
+	return c.OctopusOAuthClientID != "" && c.OctopusOAuthTokenURL != "" && c.OctopusOAuthAuthorizeURL != ""
 }
 
 // IsChatAllowed reports whether the given chat ID may interact with the bot.

@@ -50,6 +50,7 @@ type RateRepo interface {
 type OctopusClient interface {
 	LatestAgileProduct(ctx context.Context) (ProductInfo, error)
 	StandardUnitRates(ctx context.Context, productCode, tariffCode string, from, to time.Time) ([]agile.HalfHour, error)
+	RegionForPostcode(ctx context.Context, postcode string) (string, error)
 }
 
 // ProductInfo is the service-layer view of an Octopus product — only what we need.
@@ -140,6 +141,19 @@ func (s *Service) SetRegion(ctx context.Context, chatID int64, region string) er
 		return ErrInvalidRegion
 	}
 	return s.chats.UpsertChatRegion(ctx, chatID, r)
+}
+
+// SetRegionByPostcode resolves a UK postcode to a DNO region letter via the Octopus
+// industry GSP endpoint and persists it for the chat. Returns the resolved letter.
+func (s *Service) SetRegionByPostcode(ctx context.Context, chatID int64, postcode string) (string, error) {
+	r, err := s.octopus.RegionForPostcode(ctx, postcode)
+	if err != nil {
+		return "", err
+	}
+	if err := s.SetRegion(ctx, chatID, r); err != nil {
+		return "", err
+	}
+	return r, nil
 }
 
 // resolveChat returns the chat's stored region/timezone, or synthesises a default chat

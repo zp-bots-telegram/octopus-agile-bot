@@ -82,3 +82,40 @@ func TestLoad_RequiresSecrets(t *testing.T) {
 	_, err := Load()
 	require.Error(t, err)
 }
+
+func TestLoad_WebDefaults(t *testing.T) {
+	t.Setenv("TELEGRAM_BOT_TOKEN", "tg")
+	t.Setenv("OCTOPUS_API_KEY", "ok")
+	got, err := Load()
+	require.NoError(t, err)
+	assert.Equal(t, ":8080", got.HTTPListenAddr)
+	assert.Equal(t, "http://localhost:8080", got.WebBaseURL)
+	assert.False(t, got.Config.OctopusOAuthEnabled())
+}
+
+func TestLoad_SessionSecretTooShort(t *testing.T) {
+	t.Setenv("TELEGRAM_BOT_TOKEN", "tg")
+	t.Setenv("OCTOPUS_API_KEY", "ok")
+	t.Setenv("SESSION_SECRET", "short")
+	_, err := Load()
+	require.Error(t, err)
+}
+
+func TestLoad_EncryptionKeyWrongSize(t *testing.T) {
+	t.Setenv("TELEGRAM_BOT_TOKEN", "tg")
+	t.Setenv("OCTOPUS_API_KEY", "ok")
+	t.Setenv("ENCRYPTION_KEY", "not-32-bytes")
+	_, err := Load()
+	require.Error(t, err)
+}
+
+func TestOctopusOAuthEnabled(t *testing.T) {
+	t.Setenv("TELEGRAM_BOT_TOKEN", "tg")
+	t.Setenv("OCTOPUS_API_KEY", "ok")
+	t.Setenv("OCTOPUS_OAUTH_CLIENT_ID", "id")
+	t.Setenv("OCTOPUS_OAUTH_TOKEN_URL", "https://x/tok")
+	t.Setenv("OCTOPUS_OAUTH_AUTHORIZE_URL", "https://x/auth")
+	got, err := Load()
+	require.NoError(t, err)
+	assert.True(t, got.Config.OctopusOAuthEnabled())
+}

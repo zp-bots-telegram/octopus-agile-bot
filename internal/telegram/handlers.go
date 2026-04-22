@@ -36,30 +36,79 @@ func NewHandlers(svc *service.Service, allowed AllowedFunc, log *slog.Logger) *H
 	return &Handlers{svc: svc, allowed: allowed, log: log}
 }
 
+// commandSpec is the single source of truth for every v1 command: the pattern the
+// handler matches, the function to invoke, and the description shown in the Telegram
+// client's command menu.
+type commandSpec struct {
+	name        string
+	description string
+	fn          bot.HandlerFunc
+}
+
+func (h *Handlers) specs() []commandSpec {
+	return []commandSpec{
+		{"start", "Intro and setup", h.Start},
+		{"help", "List commands", h.Help},
+		{"region", "Set region: /region C or /region SW1A1AA", h.Region},
+		{"cheapest", "Cheapest window, e.g. /cheapest 3h", h.Cheapest},
+		{"next", "Next slot below price, e.g. /next 15", h.Next},
+		{"subscribe", "Daily cheapest-window push, e.g. /subscribe 3h 08:00", h.Subscribe},
+		{"unsubscribe", "Stop daily cheapest-window push", h.Unsubscribe},
+		{"charge", "Recurring EV charge plan, e.g. /charge 4h 22:00-07:00", h.Charge},
+		{"charges", "List active charge plans", h.Charges},
+		{"cancelcharge", "Cancel a charge plan by id", h.CancelCharge},
+		{"status", "Show your settings", h.StatusCmd},
+	}
+}
+
 // Register wires every command on the bot. Call after bot.New, before bot.Start.
+// We use a custom match function instead of MatchTypeCommand so we can handle the
+// group-chat form `/cmd@botusername`, which the built-in matcher rejects because it
+// compares the whole command token including the `@suffix`.
 func (h *Handlers) Register(b *bot.Bot) {
-	type cmd struct {
-		pat string
-		fn  bot.HandlerFunc
+	for _, s := range h.specs() {
+		b.RegisterHandlerMatchFunc(matchCommand(s.name), s.fn)
 	}
-	// MatchTypeCommand strips the leading slash before comparing — patterns must NOT
-	// start with "/".
-	cmds := []cmd{
-		{"start", h.Start},
-		{"help", h.Help},
-		{"region", h.Region},
-		{"cheapest", h.Cheapest},
-		{"next", h.Next},
-		{"subscribe", h.Subscribe},
-		{"unsubscribe", h.Unsubscribe},
-		{"charge", h.Charge},
-		{"charges", h.Charges},
-		{"cancelcharge", h.CancelCharge},
-		{"status", h.StatusCmd},
+}
+
+// matchCommand matches a message containing a BotCommand entity whose token (minus
+// any `@botusername` suffix) equals `pattern`.
+func matchCommand(pattern string) bot.MatchFunc {
+	return func(update *models.Update) bool {
+		if update.Message == nil {
+			return false
+		}
+		text := update.Message.Text
+		for _, e := range update.Message.Entities {
+			if e.Type != models.MessageEntityTypeBotCommand {
+				continue
+			}
+			if e.Offset+e.Length > len(text) {
+				continue
+			}
+			// Entity spans "/cmd" or "/cmd@botusername"; drop the leading slash.
+			token := text[e.Offset+1 : e.Offset+e.Length]
+			if at := strings.IndexByte(token, '@'); at >= 0 {
+				token = token[:at]
+			}
+			if token == pattern {
+				return true
+			}
+		}
+		return false
 	}
-	for _, c := range cmds {
-		b.RegisterHandler(bot.HandlerTypeMessageText, c.pat, bot.MatchTypeCommand, c.fn)
+}
+
+// PublishCommands pushes the command menu to Telegram via setMyCommands. Call once
+// at startup so the UI matches the code without a manual curl.
+func (h *Handlers) PublishCommands(ctx context.Context, b *bot.Bot) error {
+	specs := h.specs()
+	cmds := make([]models.BotCommand, 0, len(specs))
+	for _, s := range specs {
+		cmds = append(cmds, models.BotCommand{Command: s.name, Description: s.description})
 	}
+	_, err := b.SetMyCommands(ctx, &bot.SetMyCommandsParams{Commands: cmds})
+	return err
 }
 
 // ---- command impls --------------------------------------------------------
@@ -69,9 +118,15 @@ func (h *Handlers) Start(ctx context.Context, b *bot.Bot, u *models.Update) {
 		return
 	}
 	h.reply(ctx, b, u,
-		"Hi! I help you time high-load appliances against Octopus Agile.\n"+
-			"Start with /region <letter> (A–P) to pick your DNO region, then try /cheapest 3h.\n"+
-			"Use /help for the full command list.")
+		"Hi! I help you time high-load appliances (EV charging, dishwasher, etc.) against Octopus Agile's half-hourly prices.\n\n"+
+			"Start by telling me your DNO region with either:\n"+
+			"  • /region <postcode>  — e.g. /region SW1A 1AA (I'll look up the letter)\n"+
+			"  • /region <letter>     — e.g. /region C\n\n"+
+			"Then try:\n"+
+			"  /cheapest 3h — best 3-hour window in the next 24–48h\n"+
+			"  /charge 4h 22:00-07:00 — daily EV charge plan, I'll DM you when to plug in\n"+
+			"  /next 15 — the next half-hour under 15 p/kWh\n\n"+
+			"Full list with /help.")
 }
 
 func (h *Handlers) Help(ctx context.Context, b *bot.Bot, u *models.Update) {
@@ -79,7 +134,7 @@ func (h *Handlers) Help(ctx context.Context, b *bot.Bot, u *models.Update) {
 		return
 	}
 	h.reply(ctx, b, u, `Commands:
-/region <A-P> — set your DNO region
+/region <A-P> or <postcode> — set your DNO region
 /cheapest <duration> — cheapest window in the next 24–48h, e.g. /cheapest 3h
 /next <p> — next half-hour below <p> p/kWh, e.g. /next 15
 /subscribe <duration> <HH:MM> — daily notification of the cheapest window
@@ -95,15 +150,38 @@ func (h *Handlers) Region(ctx context.Context, b *bot.Bot, u *models.Update) {
 		return
 	}
 	args := argsOf(u.Message)
-	if len(args) != 1 {
-		h.reply(ctx, b, u, "Usage: /region <letter A-P>")
+	if len(args) == 0 {
+		h.reply(ctx, b, u, "Usage: /region <letter A-P> or /region <postcode>")
 		return
 	}
-	if err := h.svc.SetRegion(ctx, u.Message.Chat.ID, args[0]); err != nil {
-		h.reply(ctx, b, u, friendly(err))
+	// Join args so postcodes with spaces ("SW1A 1AA") still work.
+	input := strings.ToUpper(strings.TrimSpace(strings.Join(args, " ")))
+
+	// Single-letter fast path.
+	if len(input) == 1 {
+		if err := h.svc.SetRegion(ctx, u.Message.Chat.ID, input); err != nil {
+			h.reply(ctx, b, u, friendly(err))
+			return
+		}
+		h.reply(ctx, b, u, "Region set to "+formatRegion(input)+".")
 		return
 	}
-	h.reply(ctx, b, u, "Region set to "+strings.ToUpper(args[0])+".")
+
+	// Otherwise treat as postcode.
+	r, err := h.svc.SetRegionByPostcode(ctx, u.Message.Chat.ID, input)
+	if err != nil {
+		h.reply(ctx, b, u, "Couldn't resolve postcode "+input+": "+err.Error())
+		return
+	}
+	h.reply(ctx, b, u, "Region set to "+formatRegion(r)+" (resolved from postcode "+input+").")
+}
+
+// formatRegion returns e.g. `A (Eastern England)` or just `A` if the letter is unknown.
+func formatRegion(letter string) string {
+	if name := agile.RegionName(letter); name != "" {
+		return letter + " (" + name + ")"
+	}
+	return letter
 }
 
 func (h *Handlers) Cheapest(ctx context.Context, b *bot.Bot, u *models.Update) {
@@ -278,7 +356,7 @@ func (h *Handlers) StatusCmd(ctx context.Context, b *bot.Bot, u *models.Update) 
 		return
 	}
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "Region: %s\nTimezone: %s\n", st.Region, st.Timezone)
+	fmt.Fprintf(&sb, "Region: %s\nTimezone: %s\n", formatRegion(st.Region), st.Timezone)
 	if st.Subscription != nil {
 		fmt.Fprintf(&sb, "Subscription: %s at %s\n",
 			roundedDur(st.Subscription.Duration), st.Subscription.NotifyAtLocal)

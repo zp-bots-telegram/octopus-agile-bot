@@ -104,6 +104,7 @@ func (fakeOctopus) LatestAgileProduct(context.Context) (service.ProductInfo, err
 func (fakeOctopus) StandardUnitRates(context.Context, string, string, time.Time, time.Time) ([]agile.HalfHour, error) {
 	return nil, nil
 }
+func (fakeOctopus) RegionForPostcode(context.Context, string) (string, error) { return "C", nil }
 
 type fixedClock struct{ t time.Time }
 
@@ -161,6 +162,25 @@ func fireText(b *bot.Bot, chatID int64, text string) {
 			Entities: entities,
 		},
 	})
+}
+
+func TestGroupChatCommandWithAtSuffix(t *testing.T) {
+	b, rec, _, _ := buildHarness(t)
+
+	text := "/help@octopus_energy_info_bot"
+	b.ProcessUpdate(context.Background(), &models.Update{
+		Message: &models.Message{
+			ID:   1,
+			Chat: models.Chat{ID: -1001234567890, Type: models.ChatTypeSupergroup},
+			Text: text,
+			Entities: []models.MessageEntity{{
+				Type:   models.MessageEntityTypeBotCommand,
+				Offset: 0,
+				Length: len(text),
+			}},
+		},
+	})
+	assert.Contains(t, rec.last().Fields["text"], "/cheapest")
 }
 
 func TestStartHelpRegion(t *testing.T) {

@@ -140,3 +140,27 @@ func NextBelowThreshold(rates []HalfHour, threshold float64, now time.Time) (Hal
 func TariffCode(productCode, region string) string {
 	return "E-1R-" + productCode + "-" + region
 }
+
+// regionNames maps DNO region letter → human name.
+var regionNames = map[string]string{
+	"A": "Eastern England",
+	"B": "East Midlands",
+	"C": "London",
+	"D": "Merseyside and North Wales",
+	"E": "West Midlands",
+	"F": "North Eastern England",
+	"G": "North Western England",
+	"H": "Northern Scotland",
+	"J": "Southern England",
+	"K": "South Wales",
+	"L": "South Eastern England",
+	"M": "South Western England",
+	"N": "Southern Scotland",
+	"P": "Yorkshire",
+}
+
+// RegionName returns the human name for a DNO region letter, or an empty string if
+// the letter is unknown.
+func RegionName(region string) string {
+	return regionNames[region]
+}

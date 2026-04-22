@@ -4,8 +4,10 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -13,19 +15,24 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/zp-bots-telegram/octopus-agile-bot/internal/agile"
 	"github.com/zp-bots-telegram/octopus-agile-bot/internal/config"
+	"github.com/zp-bots-telegram/octopus-agile-bot/internal/httpapi"
 	"github.com/zp-bots-telegram/octopus-agile-bot/internal/octopus"
 	"github.com/zp-bots-telegram/octopus-agile-bot/internal/scheduler"
 	"github.com/zp-bots-telegram/octopus-agile-bot/internal/service"
+	"github.com/zp-bots-telegram/octopus-agile-bot/internal/session"
 	"github.com/zp-bots-telegram/octopus-agile-bot/internal/storage"
 	"github.com/zp-bots-telegram/octopus-agile-bot/internal/telegram"
 )
 
 type App struct {
-	cfg   *config.Loaded
-	log   *slog.Logger
-	store *storage.Store
-	bot   *bot.Bot
-	sched *scheduler.Scheduler
+	cfg      *config.Loaded
+	log      *slog.Logger
+	store    *storage.Store
+	bot      *bot.Bot
+	svc      *service.Service
+	sched    *scheduler.Scheduler
+	handlers *telegram.Handlers
+	http     *http.Server
 }
 
 // New builds every collaborator but does not start any goroutines.
@@ -55,7 +62,8 @@ func New(ctx context.Context, cfg *config.Loaded) (*App, error) {
 	})
 
 	allow := cfg.Config.IsChatAllowed
-	telegram.NewHandlers(svc, allow, log).Register(b)
+	handlers := telegram.NewHandlers(svc, allow, log)
+	handlers.Register(b)
 
 	sch, err := scheduler.New(svc, cfg.Location, log)
 	if err != nil {
@@ -63,7 +71,32 @@ func New(ctx context.Context, cfg *config.Loaded) (*App, error) {
 		return nil, fmt.Errorf("scheduler.New: %w", err)
 	}
 
-	return &App{cfg: cfg, log: log, store: store, bot: b, sched: sch}, nil
+	// HTTP API for the web UI. Disabled unless SESSION_SECRET is set — signed cookies
+	// are not negotiable, and we'd rather fail loudly than default to an insecure key.
+	var httpSrv *http.Server
+	if cfg.SessionSecret != "" {
+		mgr, err := session.New(cfg.SessionSecret, strings.HasPrefix(cfg.WebBaseURL, "https://"))
+		if err != nil {
+			_ = store.Close()
+			return nil, fmt.Errorf("session manager: %w", err)
+		}
+		// In dev, SvelteKit runs on :5173 and needs to call the Go API on :8080 with
+		// credentials — permit that specific origin.
+		devOrigin := os.Getenv("DEV_ORIGIN")
+		api := httpapi.New(httpapi.Deps{
+			Service: svc, Sessions: mgr, BotToken: cfg.TelegramBotToken, Log: log,
+			DevOrigin: devOrigin,
+		})
+		httpSrv = &http.Server{
+			Addr:              cfg.HTTPListenAddr,
+			Handler:           api,
+			ReadHeaderTimeout: 5 * time.Second,
+		}
+	} else {
+		log.Info("HTTP API disabled — SESSION_SECRET not set")
+	}
+
+	return &App{cfg: cfg, log: log, store: store, bot: b, svc: svc, sched: sch, handlers: handlers, http: httpSrv}, nil
 }
 
 // Run starts the scheduler and the bot's long-poll loop, and blocks until ctx is
@@ -74,8 +107,36 @@ func (a *App) Run(ctx context.Context) error {
 		"default_region", a.cfg.DefaultRegion,
 		"allowlist_size", len(a.cfg.AllowedChatIDs))
 
+	if err := a.handlers.PublishCommands(ctx, a.bot); err != nil {
+		a.log.Warn("publish commands failed — menu may be stale", "err", err)
+	} else {
+		a.log.Info("telegram command menu published")
+	}
+
 	if err := a.sched.Start(ctx); err != nil {
 		return fmt.Errorf("scheduler.Start: %w", err)
+	}
+
+	// Cold-start refresh. If the cache already has rates this is a harmless upsert;
+	// if not, it's what makes /cheapest work on first use without waiting for the
+	// scheduled 16:15 job. Runs in a goroutine so startup stays snappy.
+	go func() {
+		n, err := a.svc.RefreshRates(ctx)
+		if err != nil {
+			a.log.Warn("initial rate refresh failed", "err", err)
+			return
+		}
+		a.log.Info("initial rate refresh complete", "rows", n)
+	}()
+
+	// HTTP server (optional).
+	if a.http != nil {
+		go func() {
+			a.log.Info("http server listening", "addr", a.http.Addr)
+			if err := a.http.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				a.log.Error("http server", "err", err)
+			}
+		}()
 	}
 
 	// bot.Start blocks until ctx is done.
@@ -92,6 +153,13 @@ func (a *App) Run(ctx context.Context) error {
 	<-done
 	if err := a.sched.Stop(); err != nil {
 		a.log.Error("scheduler stop", "err", err)
+	}
+	if a.http != nil {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := a.http.Shutdown(shutdownCtx); err != nil {
+			a.log.Error("http shutdown", "err", err)
+		}
 	}
 	if err := a.store.Close(); err != nil {
 		a.log.Error("store close", "err", err)
@@ -114,6 +182,10 @@ func (a octopusAdapter) StandardUnitRates(
 	ctx context.Context, productCode, tariffCode string, from, to time.Time,
 ) ([]agile.HalfHour, error) {
 	return a.c.StandardUnitRates(ctx, productCode, tariffCode, from, to)
+}
+
+func (a octopusAdapter) RegionForPostcode(ctx context.Context, postcode string) (string, error) {
+	return a.c.RegionForPostcode(ctx, postcode)
 }
 
 // newLogger builds a slog.Logger honouring LOG_FORMAT + LOG_LEVEL.

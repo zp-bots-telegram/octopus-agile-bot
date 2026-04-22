@@ -28,6 +28,9 @@ func (f *fakeOctopus) LatestAgileProduct(ctx context.Context) (ProductInfo, erro
 func (f *fakeOctopus) StandardUnitRates(ctx context.Context, _, _ string, _, _ time.Time) ([]agile.HalfHour, error) {
 	return f.rates, f.err
 }
+func (f *fakeOctopus) RegionForPostcode(ctx context.Context, postcode string) (string, error) {
+	return "C", nil
+}
 
 type fakeNotifier struct {
 	mu   sync.Mutex

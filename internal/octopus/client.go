@@ -104,6 +104,42 @@ func (c *Client) LatestAgileProduct(ctx context.Context) (Product, error) {
 	return best, nil
 }
 
+// GridSupplyPoint is one entry of /v1/industry/grid-supply-points/.
+type GridSupplyPoint struct {
+	GroupID string `json:"group_id"`
+}
+
+type gspResponse struct {
+	Count   int               `json:"count"`
+	Results []GridSupplyPoint `json:"results"`
+}
+
+// RegionForPostcode resolves a UK postcode to its DNO region letter (A-P) via
+// /v1/industry/grid-supply-points/. The endpoint is public, so an API key is not
+// strictly required, but we pass one when we have one.
+func (c *Client) RegionForPostcode(ctx context.Context, postcode string) (string, error) {
+	u, err := url.Parse(c.base + "/v1/industry/grid-supply-points/")
+	if err != nil {
+		return "", err
+	}
+	q := u.Query()
+	q.Set("postcode", strings.ToUpper(strings.ReplaceAll(postcode, " ", "")))
+	u.RawQuery = q.Encode()
+
+	var resp gspResponse
+	if err := c.getJSON(ctx, u.String(), &resp); err != nil {
+		return "", err
+	}
+	if len(resp.Results) == 0 {
+		return "", fmt.Errorf("no grid supply point for postcode %q", postcode)
+	}
+	region := strings.TrimPrefix(resp.Results[0].GroupID, "_")
+	if len(region) != 1 || region[0] < 'A' || region[0] > 'P' {
+		return "", fmt.Errorf("unexpected group_id %q", resp.Results[0].GroupID)
+	}
+	return region, nil
+}
+
 // standardUnitRate mirrors a single entry from standard-unit-rates.
 type standardUnitRate struct {
 	ValueExcVAT float64   `json:"value_exc_vat"`
