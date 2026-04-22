@@ -55,6 +55,7 @@ func (h *Handlers) specs() []commandSpec {
 		{"subscribe", "Daily cheapest-window push, e.g. /subscribe 3h 08:00", h.Subscribe},
 		{"unsubscribe", "Stop daily cheapest-window push", h.Unsubscribe},
 		{"charge", "Recurring EV charge plan, e.g. /charge 4h 22:00-07:00", h.Charge},
+		{"plan", "One-shot charge plan, e.g. /plan 4h by 07:00", h.Plan},
 		{"charges", "List active charge plans", h.Charges},
 		{"cancelcharge", "Cancel a charge plan by id", h.CancelCharge},
 		{"alerts", "Alert me when prices go low, e.g. /alerts 0 or /alerts off", h.Alerts},
@@ -141,6 +142,7 @@ func (h *Handlers) Help(ctx context.Context, b *bot.Bot, u *models.Update) {
 /subscribe <duration> <HH:MM> — daily notification of the cheapest window
 /unsubscribe
 /charge <duration> <HH:MM>-<HH:MM> — daily EV-charge plan, e.g. /charge 4h 22:00-07:00
+/plan <duration> [by HH:MM] — one-shot "when should I start charging right now?"
 /charges — list active charge plans
 /cancelcharge <id>
 /alerts <threshold|off> — notify ~10 min before prices go below <threshold> p/kWh (default 0 = negative only)
@@ -297,6 +299,53 @@ func (h *Handlers) Charge(ctx context.Context, b *bot.Bot, u *models.Update) {
 	h.reply(ctx, b, u, fmt.Sprintf(
 		"Charge plan #%d saved: %s per day, allowed %s–%s. I'll message you each afternoon once tomorrow's rates land.",
 		p.ID, args[0], start, end,
+	))
+}
+
+// Plan is the instant-charge planner. Usage:
+//
+//	/plan 4h                → cheapest 4h window anywhere in the horizon
+//	/plan 4h by 07:00       → cheapest 4h window that finishes by 07:00 local (rolls
+//	                          to tomorrow if 07:00 is already past today)
+func (h *Handlers) Plan(ctx context.Context, b *bot.Bot, u *models.Update) {
+	if !h.gate(ctx, b, u) {
+		return
+	}
+	args := argsOf(u.Message)
+	if len(args) == 0 {
+		h.reply(ctx, b, u, "Usage: /plan <duration> [by HH:MM], e.g. /plan 4h or /plan 4h by 07:00")
+		return
+	}
+	d, err := time.ParseDuration(args[0])
+	if err != nil || d <= 0 {
+		h.reply(ctx, b, u, "Couldn't parse duration "+args[0])
+		return
+	}
+	byLocal := ""
+	if len(args) >= 3 && strings.EqualFold(args[1], "by") {
+		byLocal = args[2]
+	} else if len(args) != 1 {
+		h.reply(ctx, b, u, "Usage: /plan <duration> [by HH:MM]")
+		return
+	}
+	sug, err := h.svc.SuggestCharge(ctx, u.Message.Chat.ID, d, byLocal)
+	if err != nil {
+		h.reply(ctx, b, u, friendly(err))
+		return
+	}
+	tz := h.chatTZ(ctx, u.Message.Chat.ID)
+	startIn := roundedDur(sug.StartIn)
+	if sug.StartIn <= 30*time.Second {
+		startIn = "now"
+	} else {
+		startIn = "in " + startIn
+	}
+	h.reply(ctx, b, u, fmt.Sprintf(
+		"Best start %s: %s → %s (mean %.2f p/kWh inc VAT).",
+		startIn,
+		sug.Window.Start.In(tz).Format("Mon 02 Jan 15:04"),
+		sug.Window.End.In(tz).Format("15:04"),
+		sug.Window.MeanIncVAT,
 	))
 }
 

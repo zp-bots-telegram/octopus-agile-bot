@@ -267,6 +267,51 @@ func (s *Service) resolveChat(ctx context.Context, chatID int64) (storage.Chat, 
 	return storage.Chat{ChatID: chatID, Region: s.defaultRg, Timezone: s.defaultTZ.String()}, nil
 }
 
+// ChargeSuggestion is a one-shot "start charging at..." recommendation.
+type ChargeSuggestion struct {
+	Window  agile.Window
+	StartIn time.Duration // how long from "now" until Window.Start
+}
+
+// SuggestCharge is the instant-charge planner: give the cheapest contiguous window of
+// `duration` between now and (optionally) `byLocal` — a "HH:MM" time interpreted in
+// the chat's timezone. If the supplied time is already in the past today, it's rolled
+// forward to tomorrow. Empty byLocal means "anywhere in the published horizon".
+func (s *Service) SuggestCharge(ctx context.Context, chatID int64, duration time.Duration, byLocal string) (ChargeSuggestion, error) {
+	chat, err := s.resolveChat(ctx, chatID)
+	if err != nil {
+		return ChargeSuggestion{}, err
+	}
+	tz, err := time.LoadLocation(chat.Timezone)
+	if err != nil {
+		tz = s.defaultTZ
+	}
+	now := s.clock.Now().UTC()
+	to := now.Add(48 * time.Hour)
+	if strings.TrimSpace(byLocal) != "" {
+		hm, err := parseHHMM(byLocal)
+		if err != nil {
+			return ChargeSuggestion{}, err
+		}
+		localNow := now.In(tz)
+		y, m, d := localNow.Date()
+		deadline := time.Date(y, m, d, hm.Hour(), hm.Minute(), 0, 0, tz)
+		if !deadline.After(localNow) {
+			deadline = deadline.AddDate(0, 0, 1)
+		}
+		to = deadline.UTC()
+	}
+	rates, err := s.rates.Rates(ctx, chat.Region, now, to)
+	if err != nil {
+		return ChargeSuggestion{}, err
+	}
+	w, err := agile.CheapestWindow(rates, duration, now, to)
+	if err != nil {
+		return ChargeSuggestion{}, err
+	}
+	return ChargeSuggestion{Window: w, StartIn: w.Start.Sub(now)}, nil
+}
+
 // CheapestWindow finds the cheapest `duration` window within the horizon of currently
 // published rates for the given chat.
 func (s *Service) CheapestWindow(ctx context.Context, chatID int64, duration time.Duration) (agile.Window, error) {

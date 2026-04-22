@@ -13,6 +13,32 @@
 	let slots = $state<Slot[]>([]);
 	let chartError = $state<string | null>(null);
 
+	// Instant charge-plan state.
+	let planDuration = $state('4h');
+	let planBy = $state('');
+	let planResult = $state<{ window: Window; start_in_seconds: number } | null>(null);
+	let planError = $state<string | null>(null);
+
+	function humanSeconds(s: number): string {
+		if (s <= 30) return 'now';
+		const mins = Math.round(s / 60);
+		const h = Math.floor(mins / 60);
+		const m = mins % 60;
+		if (h === 0) return `in ${m}m`;
+		if (m === 0) return `in ${h}h`;
+		return `in ${h}h${String(m).padStart(2, '0')}m`;
+	}
+
+	async function planNow() {
+		planError = null;
+		planResult = null;
+		try {
+			planResult = await api.planNow(planDuration, planBy.trim() || undefined);
+		} catch (e) {
+			planError = e instanceof ApiError ? e.message : String(e);
+		}
+	}
+
 	async function loadRegion() {
 		try {
 			region = await api.getRegion();
@@ -100,6 +126,52 @@
 						</p>
 						<p class="text-dark/80">
 							Mean {cheapest.mean_inc_vat_p_per_kwh.toFixed(2)} p/kWh (inc VAT)
+						</p>
+					</div>
+				{/if}
+			</CardBody>
+		</Card>
+
+		<Card>
+			<CardHeader>
+				<CardTitle>Plan a charge now</CardTitle>
+			</CardHeader>
+			<CardBody>
+				<p class="mb-4 text-sm text-dark/80">
+					One-shot: I need to charge for N hours, ideally finished by Y. Tells you when
+					to start based on current prices.
+				</p>
+				<div class="flex flex-wrap items-end gap-3">
+					<label class="flex flex-col text-sm">
+						<span class="text-dark/80">Duration</span>
+						<input
+							class="mt-1 rounded border border-light-300 bg-transparent px-2 py-1"
+							bind:value={planDuration}
+							placeholder="4h"
+						/>
+					</label>
+					<label class="flex flex-col text-sm">
+						<span class="text-dark/80">Finish by (HH:MM, optional)</span>
+						<input
+							class="mt-1 rounded border border-light-300 bg-transparent px-2 py-1"
+							bind:value={planBy}
+							placeholder="07:00"
+						/>
+					</label>
+					<Button onclick={planNow}>Plan</Button>
+				</div>
+
+				{#if planError}
+					<Alert class="mt-4" color="danger">{planError}</Alert>
+				{:else if planResult}
+					<div class="mt-4 rounded bg-light-100 p-4 text-sm">
+						<p class="font-medium">
+							Start {humanSeconds(planResult.start_in_seconds)}:
+							{new Date(planResult.window.start).toLocaleString()} →
+							{new Date(planResult.window.end).toLocaleTimeString()}
+						</p>
+						<p class="text-dark/80">
+							Mean {planResult.window.mean_inc_vat_p_per_kwh.toFixed(2)} p/kWh (inc VAT)
 						</p>
 					</div>
 				{/if}

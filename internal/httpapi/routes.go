@@ -32,6 +32,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/region", s.requireSession(s.handleGetRegion))
 	s.mux.HandleFunc("PUT /api/region", s.requireSession(s.handleSetRegion))
 	s.mux.HandleFunc("GET /api/cheapest", s.requireSession(s.handleCheapest))
+	s.mux.HandleFunc("GET /api/plan-now", s.requireSession(s.handlePlanNow))
 	s.mux.HandleFunc("GET /api/next", s.requireSession(s.handleNext))
 	s.mux.HandleFunc("GET /api/rates", s.requireSession(s.handleRates))
 	s.mux.HandleFunc("GET /api/status", s.requireSession(s.handleStatus))
@@ -204,6 +205,26 @@ func (s *Server) handleCheapest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, toWindowJSON(win))
+}
+
+// handlePlanNow is the instant charge planner. ?duration=4h &by=HH:MM (optional).
+func (s *Server) handlePlanNow(w http.ResponseWriter, r *http.Request) {
+	chatID := claimsOf(r).TelegramUserID
+	d, err := time.ParseDuration(r.URL.Query().Get("duration"))
+	if err != nil || d <= 0 {
+		writeError(w, http.StatusBadRequest, "missing or invalid ?duration=")
+		return
+	}
+	byLocal := r.URL.Query().Get("by")
+	sug, err := s.svc.SuggestCharge(r.Context(), chatID, d, byLocal)
+	if err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"window":          toWindowJSON(sug.Window),
+		"start_in_seconds": int(sug.StartIn.Seconds()),
+	})
 }
 
 func (s *Server) handleNext(w http.ResponseWriter, r *http.Request) {

@@ -95,6 +95,14 @@ export const api = {
 		request<RegionResp>('PUT', '/api/region', { postcode }),
 
 	cheapest: (duration: string) => request<Window>('GET', `/api/cheapest?duration=${duration}`),
+	planNow: (duration: string, byLocal?: string) => {
+		const q = new URLSearchParams({ duration });
+		if (byLocal) q.set('by', byLocal);
+		return request<{ window: Window; start_in_seconds: number }>(
+			'GET',
+			`/api/plan-now?${q.toString()}`
+		);
+	},
 	next: (threshold: number) => request<Slot>('GET', `/api/next?threshold=${threshold}`),
 	rates: (fromISO?: string, toISO?: string) => {
 		const q = new URLSearchParams();
