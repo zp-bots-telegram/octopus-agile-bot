@@ -124,6 +124,16 @@ export const api = {
 			mpan: string;
 		}>('PUT', '/api/octopus', { account_number: accountNumber, api_key: apiKey }),
 	unlinkOctopus: () => request<void>('DELETE', '/api/octopus'),
+	consumption: (fromISO?: string, toISO?: string, groupBy?: string) => {
+		const q = new URLSearchParams();
+		if (fromISO) q.set('from', fromISO);
+		if (toISO) q.set('to', toISO);
+		if (groupBy) q.set('group_by', groupBy);
+		const qs = q.toString();
+		return request<
+			{ interval_start: string; interval_end: string; consumption_kwh: number }[]
+		>('GET', `/api/consumption${qs ? '?' + qs : ''}`);
+	},
 
 	getAlert: () =>
 		request<{ threshold_inc_vat: number; enabled: boolean } | null>('GET', '/api/alert'),

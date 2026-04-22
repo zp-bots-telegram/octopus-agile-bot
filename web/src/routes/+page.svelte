@@ -1,5 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import {
+		Alert,
+		Button,
+		Card,
+		CardBody,
+		CardHeader,
+		CardTitle,
+		Field,
+		HStack,
+		Input,
+		Link,
+		Stack,
+		Text
+	} from '@immich/ui';
 	import { api, ApiError, type RegionResp, type Slot, type Window } from '$lib/api';
 	import { session } from '$lib/session.svelte';
 	import RateChart from '$lib/RateChart.svelte';
@@ -49,68 +63,71 @@
 </script>
 
 {#if !session.me}
-	<p>Not signed in. <a class="text-primary-600 dark:text-primary-400 underline" href="/login">Sign in →</a></p>
+	<Text>Not signed in. <Link href="/login">Sign in →</Link></Text>
 {:else if !region}
-	<section class="rounded-lg border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-6">
-		<h2 class="mb-2 text-lg font-semibold">Welcome!</h2>
-		<p class="mb-4 text-dark/80 dark:text-light/80">
-			Set your DNO region before we can find cheap slots for you.
-		</p>
-		<a
-			href="/settings"
-			class="inline-block rounded bg-primary-600 px-4 py-2 text-white hover:bg-primary-700"
-			>Go to Settings</a
-		>
-	</section>
+	<Card>
+		<CardHeader>
+			<CardTitle>Welcome!</CardTitle>
+		</CardHeader>
+		<CardBody>
+			<Stack gap={4}>
+				<Text>Set your DNO region before we can find cheap slots for you.</Text>
+				<div>
+					<Button href="/settings">Go to Settings</Button>
+				</div>
+			</Stack>
+		</CardBody>
+	</Card>
 {:else}
-	<section class="mb-6 rounded-lg border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-6">
-		<div class="mb-4 flex items-baseline justify-between">
-			<h2 class="text-lg font-semibold">
-				Region {region.region} — {region.region_name}
-			</h2>
-			<a href="/settings" class="text-sm text-dark/60 dark:text-light/60 hover:underline">Change</a>
-		</div>
+	<Stack gap={6}>
+		<Card>
+			<CardHeader>
+				<div class="flex w-full items-center justify-between">
+					<CardTitle>Region {region.region} — {region.region_name}</CardTitle>
+					<Link href="/settings" class="text-sm">Change</Link>
+				</div>
+			</CardHeader>
+			<CardBody>
+				<Stack gap={4}>
+					<HStack gap={3} class="items-end">
+						<Field label="Window length">
+							<Input bind:value={duration} placeholder="3h" />
+						</Field>
+						<Button onclick={loadCheapest}>Find cheapest</Button>
+					</HStack>
 
-		<div class="flex items-end gap-3">
-			<label class="flex flex-col text-sm">
-				<span class="text-dark/80 dark:text-light/80">Window length</span>
-				<input
-					class="mt-1 rounded border border-light-300 dark:border-dark-300 px-2 py-1"
-					bind:value={duration}
-					placeholder="3h"
-				/>
-			</label>
-			<button
-				class="rounded bg-primary-600 px-4 py-1.5 text-white hover:bg-primary-700"
-				onclick={loadCheapest}
-			>
-				Find cheapest
-			</button>
-		</div>
+					{#if cheapestError}
+						<Alert color="danger" title="Couldn't find a window">{cheapestError}</Alert>
+					{:else if cheapest}
+						<Alert color="info" icon={false}>
+							<Stack gap={1}>
+								<Text fontWeight="medium">
+									Cheapest {duration} window: {new Date(cheapest.start).toLocaleString()} →
+									{new Date(cheapest.end).toLocaleTimeString()}
+								</Text>
+								<Text color="muted" size="small">
+									Mean {cheapest.mean_inc_vat_p_per_kwh.toFixed(2)} p/kWh (inc VAT)
+								</Text>
+							</Stack>
+						</Alert>
+					{/if}
+				</Stack>
+			</CardBody>
+		</Card>
 
-		{#if cheapestError}
-			<p class="mt-3 text-sm text-danger-700 dark:text-danger-400">{cheapestError}</p>
-		{:else if cheapest}
-			<div class="mt-4 rounded bg-light-100 dark:bg-dark-100 p-4 text-sm">
-				<p class="font-medium">
-					Cheapest {duration} window: {new Date(cheapest.start).toLocaleString()} →
-					{new Date(cheapest.end).toLocaleTimeString()}
-				</p>
-				<p class="text-dark/80 dark:text-light/80">
-					Mean {cheapest.mean_inc_vat_p_per_kwh.toFixed(2)} p/kWh (inc VAT)
-				</p>
-			</div>
-		{/if}
-	</section>
-
-	<section class="rounded-lg border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-6">
-		<h2 class="mb-4 text-lg font-semibold">Published rates</h2>
-		{#if chartError}
-			<p class="text-sm text-danger-700 dark:text-danger-400">{chartError}</p>
-		{:else if slots.length > 0}
-			<RateChart {slots} />
-		{:else}
-			<p class="text-sm text-dark/60 dark:text-light/60">No rates yet.</p>
-		{/if}
-	</section>
+		<Card>
+			<CardHeader>
+				<CardTitle>Published rates</CardTitle>
+			</CardHeader>
+			<CardBody>
+				{#if chartError}
+					<Alert color="danger">{chartError}</Alert>
+				{:else if slots.length > 0}
+					<RateChart {slots} />
+				{:else}
+					<Text color="muted" size="small">No rates yet.</Text>
+				{/if}
+			</CardBody>
+		</Card>
+	</Stack>
 {/if}

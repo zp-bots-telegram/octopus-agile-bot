@@ -147,6 +147,60 @@ func (c *Client) Account(ctx context.Context, accountNumber string) (Account, er
 	return out, nil
 }
 
+// ConsumptionPoint is one half-hourly consumption reading.
+type ConsumptionPoint struct {
+	ConsumptionKWh float64   `json:"consumption"`
+	IntervalStart  time.Time `json:"interval_start"`
+	IntervalEnd    time.Time `json:"interval_end"`
+}
+
+type consumptionResponse struct {
+	Count   int                `json:"count"`
+	Next    string             `json:"next"`
+	Results []ConsumptionPoint `json:"results"`
+}
+
+// Consumption fetches /v1/electricity-meter-points/{mpan}/meters/{serial}/consumption/
+// for the requested period, following pagination. groupBy may be "", "hour", "day",
+// "week", "month" or "quarter".
+func (c *Client) Consumption(
+	ctx context.Context, mpan, meterSerial string,
+	periodFrom, periodTo time.Time, groupBy string,
+) ([]ConsumptionPoint, error) {
+	u, err := url.Parse(fmt.Sprintf(
+		"%s/v1/electricity-meter-points/%s/meters/%s/consumption/",
+		c.base, mpan, meterSerial,
+	))
+	if err != nil {
+		return nil, err
+	}
+	q := u.Query()
+	if !periodFrom.IsZero() {
+		q.Set("period_from", periodFrom.UTC().Format(time.RFC3339))
+	}
+	if !periodTo.IsZero() {
+		q.Set("period_to", periodTo.UTC().Format(time.RFC3339))
+	}
+	if groupBy != "" {
+		q.Set("group_by", groupBy)
+	}
+	q.Set("page_size", "25000")
+	q.Set("order_by", "period")
+	u.RawQuery = q.Encode()
+
+	var all []ConsumptionPoint
+	next := u.String()
+	for next != "" {
+		var resp consumptionResponse
+		if err := c.getJSON(ctx, next, &resp); err != nil {
+			return nil, err
+		}
+		all = append(all, resp.Results...)
+		next = resp.Next
+	}
+	return all, nil
+}
+
 // GridSupplyPoint is one entry of /v1/industry/grid-supply-points/.
 type GridSupplyPoint struct {
 	GroupID string `json:"group_id"`

@@ -215,7 +215,9 @@ func (a octopusAdapter) AccountWithKey(ctx context.Context, apiKey, accountNumbe
 				continue
 			}
 			info.MPAN = mp.MPAN
-			// Latest agreement = most recent valid_from.
+			if len(mp.Meters) > 0 {
+				info.MeterSerial = mp.Meters[0].SerialNumber
+			}
 			for _, ag := range mp.Agreements {
 				if ag.ValidTo == "" || ag.ValidTo > time.Now().UTC().Format(time.RFC3339) {
 					info.CurrentTariff = ag.TariffCode
@@ -226,6 +228,24 @@ func (a octopusAdapter) AccountWithKey(ctx context.Context, apiKey, accountNumbe
 		break
 	}
 	return info, nil
+}
+
+func (a octopusAdapter) ConsumptionWithKey(
+	ctx context.Context, apiKey, mpan, serial string, from, to time.Time, groupBy string,
+) ([]service.ConsumptionPoint, error) {
+	raw, err := a.c.WithAPIKey(apiKey).Consumption(ctx, mpan, serial, from, to, groupBy)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]service.ConsumptionPoint, len(raw))
+	for i, r := range raw {
+		out[i] = service.ConsumptionPoint{
+			IntervalStart: r.IntervalStart,
+			IntervalEnd:   r.IntervalEnd,
+			KWh:           r.ConsumptionKWh,
+		}
+	}
+	return out, nil
 }
 
 // newLogger builds a slog.Logger honouring LOG_FORMAT + LOG_LEVEL.

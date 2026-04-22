@@ -41,7 +41,7 @@ type ChargePlanRepo interface {
 }
 
 type OctopusLinkRepo interface {
-	SetOctopusLink(ctx context.Context, chatID int64, accountNumber string, ciphertext []byte) error
+	SetOctopusLink(ctx context.Context, chatID int64, link storage.OctopusLink) error
 }
 
 // Cipher is the minimal encryption surface the service needs — implemented by
@@ -74,6 +74,9 @@ type OctopusClient interface {
 	// per-user API key (not the global one). Used to validate a user's credentials
 	// when linking their account.
 	AccountWithKey(ctx context.Context, apiKey, accountNumber string) (AccountInfo, error)
+	// ConsumptionWithKey fetches the consumption timeseries for one meter authenticated
+	// with the supplied per-user API key.
+	ConsumptionWithKey(ctx context.Context, apiKey, mpan, meterSerial string, from, to time.Time, groupBy string) ([]ConsumptionPoint, error)
 }
 
 // AccountInfo is what the service layer surfaces from an Octopus account. Kept small
@@ -84,6 +87,14 @@ type AccountInfo struct {
 	Postcode      string
 	CurrentTariff string
 	MPAN          string
+	MeterSerial   string
+}
+
+// ConsumptionPoint is the service-layer view of one consumption reading.
+type ConsumptionPoint struct {
+	IntervalStart time.Time
+	IntervalEnd   time.Time
+	KWh           float64
 }
 
 // ProductInfo is the service-layer view of an Octopus product — only what we need.
@@ -573,7 +584,12 @@ func (s *Service) LinkOctopusAccount(ctx context.Context, chatID int64, accountN
 	if err != nil {
 		return AccountInfo{}, fmt.Errorf("encrypt: %w", err)
 	}
-	if err := s.links.SetOctopusLink(ctx, chatID, accountNumber, ct); err != nil {
+	if err := s.links.SetOctopusLink(ctx, chatID, storage.OctopusLink{
+		AccountNumber: accountNumber,
+		KeyCiphertext: ct,
+		MPAN:          info.MPAN,
+		MeterSerial:   info.MeterSerial,
+	}); err != nil {
 		return AccountInfo{}, err
 	}
 	return info, nil
@@ -584,7 +600,30 @@ func (s *Service) UnlinkOctopusAccount(ctx context.Context, chatID int64) error 
 	if s.links == nil {
 		return ErrLinkNotConfigured
 	}
-	return s.links.SetOctopusLink(ctx, chatID, "", nil)
+	return s.links.SetOctopusLink(ctx, chatID, storage.OctopusLink{})
+}
+
+// Consumption returns per-interval electricity usage for the chat's linked meter over
+// [from, to]. groupBy may be "" (half-hourly), "hour", "day", "week", "month", "quarter".
+func (s *Service) Consumption(
+	ctx context.Context, chatID int64, from, to time.Time, groupBy string,
+) ([]ConsumptionPoint, error) {
+	if s.cipher == nil {
+		return nil, ErrLinkNotConfigured
+	}
+	chat, ok, err := s.chats.GetChat(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok || len(chat.OctopusAPIKeyCiphertext) == 0 || chat.OctopusMPAN == "" || chat.OctopusMeterSerial == "" {
+		return nil, fmt.Errorf("%w: link your octopus account first", ErrLinkInvalid)
+	}
+	plaintext, err := s.cipher.Decrypt(chat.OctopusAPIKeyCiphertext)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt api key: %w", err)
+	}
+	return s.octopus.ConsumptionWithKey(ctx, string(plaintext),
+		chat.OctopusMPAN, chat.OctopusMeterSerial, from, to, groupBy)
 }
 
 // LinkedAccountFor returns the current link state — never includes the decrypted key.

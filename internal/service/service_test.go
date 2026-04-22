@@ -36,7 +36,10 @@ func (f *fakeOctopus) AccountWithKey(ctx context.Context, apiKey, accountNumber 
 	if f.linkErr != nil {
 		return AccountInfo{}, f.linkErr
 	}
-	return AccountInfo{Number: accountNumber, CurrentTariff: "E-1R-AGILE-24-10-01-C", MPAN: "1200000000000"}, nil
+	return AccountInfo{Number: accountNumber, CurrentTariff: "E-1R-AGILE-24-10-01-C", MPAN: "1200000000000", MeterSerial: "SN1234"}, nil
+}
+func (f *fakeOctopus) ConsumptionWithKey(ctx context.Context, apiKey, mpan, serial string, from, to time.Time, groupBy string) ([]ConsumptionPoint, error) {
+	return nil, nil
 }
 
 type fakeNotifier struct {

@@ -51,6 +51,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/octopus", s.requireSession(s.handleGetOctopus))
 	s.mux.HandleFunc("PUT /api/octopus", s.requireSession(s.handlePutOctopus))
 	s.mux.HandleFunc("DELETE /api/octopus", s.requireSession(s.handleDeleteOctopus))
+
+	s.mux.HandleFunc("GET /api/consumption", s.requireSession(s.handleConsumption))
 }
 
 // ---- public --------------------------------------------------------------
@@ -464,6 +466,63 @@ func (s *Server) handleDeleteOctopus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusNoContent, nil)
+}
+
+// ---- consumption ---------------------------------------------------------
+
+type consumptionPointJSON struct {
+	IntervalStart time.Time `json:"interval_start"`
+	IntervalEnd   time.Time `json:"interval_end"`
+	KWh           float64   `json:"consumption_kwh"`
+}
+
+func (s *Server) handleConsumption(w http.ResponseWriter, r *http.Request) {
+	chatID := claimsOf(r).TelegramUserID
+
+	// Defaults: last 7 days, half-hourly.
+	now := time.Now().UTC()
+	from := now.Add(-7 * 24 * time.Hour)
+	to := now
+	groupBy := r.URL.Query().Get("group_by") // "", "hour", "day", "week", "month", "quarter"
+
+	if v := r.URL.Query().Get("from"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid ?from= (want RFC3339)")
+			return
+		}
+		from = t.UTC()
+	}
+	if v := r.URL.Query().Get("to"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid ?to= (want RFC3339)")
+			return
+		}
+		to = t.UTC()
+	}
+
+	points, err := s.svc.Consumption(r.Context(), chatID, from, to, groupBy)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrLinkNotConfigured):
+			writeError(w, http.StatusServiceUnavailable, err.Error())
+		case errors.Is(err, service.ErrLinkInvalid):
+			writeError(w, http.StatusPreconditionRequired, err.Error())
+		default:
+			writeServiceErr(w, err)
+		}
+		return
+	}
+	out := make([]consumptionPointJSON, len(points))
+	for i, p := range points {
+		out[i] = consumptionPointJSON{
+			IntervalStart: p.IntervalStart,
+			IntervalEnd:   p.IntervalEnd,
+			KWh:           p.KWh,
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // ---- error mapping -------------------------------------------------------

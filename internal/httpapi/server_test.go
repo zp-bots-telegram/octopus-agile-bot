@@ -45,6 +45,9 @@ func (fakeOctopus) AccountWithKey(_ context.Context, apiKey, accountNumber strin
 	}
 	return service.AccountInfo{Number: accountNumber, CurrentTariff: "E-1R-AGILE-24-10-01-C"}, nil
 }
+func (fakeOctopus) ConsumptionWithKey(context.Context, string, string, string, time.Time, time.Time, string) ([]service.ConsumptionPoint, error) {
+	return nil, nil
+}
 
 type fakeNotifier struct{}
 

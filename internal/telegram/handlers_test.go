@@ -108,6 +108,9 @@ func (fakeOctopus) RegionForPostcode(context.Context, string) (string, error) { 
 func (fakeOctopus) AccountWithKey(context.Context, string, string) (service.AccountInfo, error) {
 	return service.AccountInfo{}, nil
 }
+func (fakeOctopus) ConsumptionWithKey(context.Context, string, string, string, time.Time, time.Time, string) ([]service.ConsumptionPoint, error) {
+	return nil, nil
+}
 
 type fixedClock struct{ t time.Time }
 

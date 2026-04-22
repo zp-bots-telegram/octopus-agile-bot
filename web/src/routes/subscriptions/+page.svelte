@@ -1,5 +1,20 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import {
+		Alert,
+		Button,
+		Card,
+		CardBody,
+		CardHeader,
+		CardTitle,
+		Field,
+		HStack,
+		Heading,
+		Input,
+		NumberInput,
+		Stack,
+		Text
+	} from '@immich/ui';
 	import { api, ApiError, type Subscription } from '$lib/api';
 
 	let sub = $state<Subscription>(null);
@@ -45,48 +60,41 @@
 	onMount(load);
 </script>
 
-<h2 class="mb-4 text-xl font-semibold">Daily cheapest-window notification</h2>
+<Stack gap={4}>
+	<Heading tag="h2" size="medium">Daily cheapest-window notification</Heading>
 
-{#if error}
-	<p class="mb-4 text-sm text-danger-700 dark:text-danger-400">{error}</p>
-{/if}
-{#if saved}
-	<p class="mb-4 text-sm text-success-700 dark:text-success-400">Saved.</p>
-{/if}
+	{#if error}
+		<Alert color="danger">{error}</Alert>
+	{/if}
+	{#if saved}
+		<Alert color="success">Saved.</Alert>
+	{/if}
 
-<section class="rounded-lg border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-4">
-	<p class="mb-4 text-sm text-dark/80 dark:text-light/80">
-		Every day at the chosen local time, the bot will message you with the cheapest
-		window of the given length over the next 24 hours.
-	</p>
-	<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
-		<label class="text-sm">
-			<span class="text-dark/80 dark:text-light/80">Window length (minutes)</span>
-			<input
-				class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 px-2 py-1"
-				type="number"
-				min="30"
-				step="30"
-				bind:value={durationMinutes}
-			/>
-		</label>
-		<label class="text-sm">
-			<span class="text-dark/80 dark:text-light/80">Notify at (HH:MM local)</span>
-			<input
-				class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 px-2 py-1"
-				bind:value={notifyAtLocal}
-			/>
-		</label>
-		<div class="flex gap-2 self-end">
-			<button class="rounded bg-primary-600 px-4 py-1.5 text-white hover:bg-primary-700" onclick={save}
-				>Save</button
-			>
-			{#if sub}
-				<button
-					class="rounded border border-danger-300 dark:border-danger-700 px-4 py-1.5 text-danger-700 dark:text-danger-300 hover:bg-danger-50 dark:hover:bg-danger-900"
-					onclick={remove}>Remove</button
-				>
-			{/if}
-		</div>
-	</div>
-</section>
+	<Card>
+		<CardHeader>
+			<CardTitle>Subscription</CardTitle>
+		</CardHeader>
+		<CardBody>
+			<Stack gap={4}>
+				<Text color="muted">
+					Every day at the chosen local time, the bot will message you with the cheapest window
+					of the given length over the next 24 hours.
+				</Text>
+				<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
+					<Field label="Window length (minutes)">
+						<NumberInput bind:value={durationMinutes} min={30} step={30} />
+					</Field>
+					<Field label="Notify at (HH:MM local)">
+						<Input bind:value={notifyAtLocal} />
+					</Field>
+					<HStack gap={2}>
+						<Button onclick={save}>Save</Button>
+						{#if sub}
+							<Button color="danger" variant="outline" onclick={remove}>Remove</Button>
+						{/if}
+					</HStack>
+				</div>
+			</Stack>
+		</CardBody>
+	</Card>
+</Stack>

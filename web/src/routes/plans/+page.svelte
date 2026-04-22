@@ -1,5 +1,20 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import {
+		Alert,
+		Button,
+		Card,
+		CardBody,
+		CardHeader,
+		CardTitle,
+		Field,
+		HStack,
+		Heading,
+		Input,
+		NumberInput,
+		Stack,
+		Text
+	} from '@immich/ui';
 	import { api, ApiError, type ChargePlan } from '$lib/api';
 
 	let plans = $state<ChargePlan[]>([]);
@@ -37,7 +52,6 @@
 	}
 
 	function humanDuration(nsOrMin: number): string {
-		// Go marshals time.Duration as nanoseconds; accept either.
 		const mins = nsOrMin >= 60_000_000 ? Math.round(nsOrMin / 60_000_000_000) * 60 : nsOrMin;
 		const h = Math.floor(mins / 60);
 		const m = mins % 60;
@@ -49,76 +63,61 @@
 	onMount(load);
 </script>
 
-<h2 class="mb-4 text-xl font-semibold">Charge plans</h2>
+<Stack gap={4}>
+	<Heading tag="h2" size="medium">Charge plans</Heading>
 
-{#if error}
-	<p class="mb-4 text-sm text-danger-700 dark:text-danger-400">{error}</p>
-{/if}
-
-<section class="mb-6 rounded-lg border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-4">
-	<h3 class="mb-3 font-semibold">Add a plan</h3>
-	<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
-		<label class="text-sm">
-			<span class="text-dark/80 dark:text-light/80">Duration (minutes)</span>
-			<input
-				class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 px-2 py-1"
-				type="number"
-				min="30"
-				step="30"
-				bind:value={durationMinutes}
-			/>
-		</label>
-		<label class="text-sm">
-			<span class="text-dark/80 dark:text-light/80">Earliest start (HH:MM)</span>
-			<input
-				class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 px-2 py-1"
-				bind:value={start}
-				placeholder="22:00"
-			/>
-		</label>
-		<label class="text-sm">
-			<span class="text-dark/80 dark:text-light/80">Latest end (HH:MM)</span>
-			<input
-				class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 px-2 py-1"
-				bind:value={end}
-				placeholder="07:00"
-			/>
-		</label>
-		<button
-			class="self-end rounded bg-primary-600 px-4 py-1.5 text-white hover:bg-primary-700"
-			onclick={create}
-		>
-			Add
-		</button>
-	</div>
-	<p class="mt-2 text-xs text-dark/60 dark:text-light/60">
-		End earlier than start means overnight (e.g. 22:00–07:00 = 9h window crossing midnight).
-	</p>
-</section>
-
-<section>
-	{#if plans.length === 0}
-		<p class="text-dark/80 dark:text-light/80">No charge plans yet.</p>
-	{:else}
-		<ul class="space-y-2">
-			{#each plans as p}
-				<li class="flex items-center justify-between rounded border border-light-200 dark:border-dark-200 bg-light-50 dark:bg-dark-100 p-3">
-					<div>
-						<p class="font-medium">
-							#{p.ID} — {humanDuration(p.Duration)} between {p.WindowStartLocal}–{p.WindowEndLocal}
-						</p>
-						<p class="text-sm text-dark/60 dark:text-light/60">
-							{p.Enabled ? 'Active' : 'Paused'}
-						</p>
-					</div>
-					<button
-						class="text-sm text-danger-700 dark:text-danger-400 hover:underline"
-						onclick={() => cancel(p.ID)}
-					>
-						Cancel
-					</button>
-				</li>
-			{/each}
-		</ul>
+	{#if error}
+		<Alert color="danger">{error}</Alert>
 	{/if}
-</section>
+
+	<Card>
+		<CardHeader>
+			<CardTitle>Add a plan</CardTitle>
+		</CardHeader>
+		<CardBody>
+			<Stack gap={3}>
+				<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] items-end">
+					<Field label="Duration (minutes)">
+						<NumberInput bind:value={durationMinutes} min={30} step={30} />
+					</Field>
+					<Field label="Earliest start (HH:MM)">
+						<Input bind:value={start} placeholder="22:00" />
+					</Field>
+					<Field label="Latest end (HH:MM)">
+						<Input bind:value={end} placeholder="07:00" />
+					</Field>
+					<Button onclick={create}>Add</Button>
+				</div>
+				<Text color="muted" size="tiny">
+					End earlier than start means overnight (e.g. 22:00–07:00 = 9h window crossing midnight).
+				</Text>
+			</Stack>
+		</CardBody>
+	</Card>
+
+	{#if plans.length === 0}
+		<Text color="muted">No charge plans yet.</Text>
+	{:else}
+		<Stack gap={2}>
+			{#each plans as p}
+				<Card>
+					<CardBody>
+						<HStack class="justify-between">
+							<Stack gap={1}>
+								<Text fontWeight="medium">
+									#{p.ID} — {humanDuration(p.Duration)} between {p.WindowStartLocal}–{p.WindowEndLocal}
+								</Text>
+								<Text color="muted" size="small">
+									{p.Enabled ? 'Active' : 'Paused'}
+								</Text>
+							</Stack>
+							<Button size="small" color="danger" variant="outline" onclick={() => cancel(p.ID)}>
+								Cancel
+							</Button>
+						</HStack>
+					</CardBody>
+				</Card>
+			{/each}
+		</Stack>
+	{/if}
+</Stack>
