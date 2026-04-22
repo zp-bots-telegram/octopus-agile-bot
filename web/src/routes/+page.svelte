@@ -60,7 +60,7 @@
 			<CardTitle>Welcome!</CardTitle>
 		</CardHeader>
 		<CardBody>
-			<p class="mb-4 text-dark/80 dark:text-light/80">
+			<p class="mb-4 text-dark/80">
 				Set your DNO region before we can find cheap slots for you.
 			</p>
 			<Button href="/settings">Go to Settings</Button>
@@ -72,7 +72,7 @@
 			<CardHeader>
 				<div class="flex w-full items-center justify-between">
 					<CardTitle>Region {region.region} — {region.region_name}</CardTitle>
-					<a href="/settings" class="text-sm text-dark/60 dark:text-light/60 hover:underline">
+					<a href="/settings" class="text-sm text-dark/60 hover:underline">
 						Change
 					</a>
 				</div>
@@ -80,9 +80,9 @@
 			<CardBody>
 				<div class="flex items-end gap-3">
 					<label class="flex flex-col text-sm">
-						<span class="text-dark/80 dark:text-light/80">Window length</span>
+						<span class="text-dark/80">Window length</span>
 						<input
-							class="mt-1 rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+							class="mt-1 rounded border border-light-300 bg-transparent px-2 py-1"
 							bind:value={duration}
 							placeholder="3h"
 						/>
@@ -93,12 +93,12 @@
 				{#if cheapestError}
 					<Alert class="mt-4" color="danger">{cheapestError}</Alert>
 				{:else if cheapest}
-					<div class="mt-4 rounded bg-light-100 dark:bg-dark-100 p-4 text-sm">
+					<div class="mt-4 rounded bg-light-100 p-4 text-sm">
 						<p class="font-medium">
 							Cheapest {duration} window: {new Date(cheapest.start).toLocaleString()} →
 							{new Date(cheapest.end).toLocaleTimeString()}
 						</p>
-						<p class="text-dark/80 dark:text-light/80">
+						<p class="text-dark/80">
 							Mean {cheapest.mean_inc_vat_p_per_kwh.toFixed(2)} p/kWh (inc VAT)
 						</p>
 					</div>
@@ -116,7 +116,7 @@
 				{:else if slots.length > 0}
 					<RateChart {slots} />
 				{:else}
-					<p class="text-sm text-dark/60 dark:text-light/60">No rates yet.</p>
+					<p class="text-sm text-dark/60">No rates yet.</p>
 				{/if}
 			</CardBody>
 		</Card>

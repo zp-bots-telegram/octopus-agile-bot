@@ -50,7 +50,7 @@
 
 		<main>
 			{#if !session.loaded}
-				<p class="text-dark/60 dark:text-light/60">Loading…</p>
+				<p class="text-dark/60">Loading…</p>
 			{:else}
 				{@render children()}
 			{/if}

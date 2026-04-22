@@ -61,15 +61,15 @@
 			<CardTitle>Subscription</CardTitle>
 		</CardHeader>
 		<CardBody>
-			<p class="mb-4 text-sm text-dark/80 dark:text-light/80">
+			<p class="mb-4 text-sm text-dark/80">
 				Every day at the chosen local time, the bot will message you with the cheapest window
 				of the given length over the next 24 hours.
 			</p>
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
 				<label class="text-sm">
-					<span class="text-dark/80 dark:text-light/80">Window length (minutes)</span>
+					<span class="text-dark/80">Window length (minutes)</span>
 					<input
-						class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+						class="mt-1 w-full rounded border border-light-300 bg-transparent px-2 py-1"
 						type="number"
 						min="30"
 						step="30"
@@ -77,9 +77,9 @@
 					/>
 				</label>
 				<label class="text-sm">
-					<span class="text-dark/80 dark:text-light/80">Notify at (HH:MM local)</span>
+					<span class="text-dark/80">Notify at (HH:MM local)</span>
 					<input
-						class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+						class="mt-1 w-full rounded border border-light-300 bg-transparent px-2 py-1"
 						bind:value={notifyAtLocal}
 					/>
 				</label>

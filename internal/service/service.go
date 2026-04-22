@@ -605,6 +605,8 @@ func (s *Service) UnlinkOctopusAccount(ctx context.Context, chatID int64) error 
 
 // Consumption returns per-interval electricity usage for the chat's linked meter over
 // [from, to]. groupBy may be "" (half-hourly), "hour", "day", "week", "month", "quarter".
+// If MPAN/MeterSerial were never captured (e.g. chat was linked before those columns
+// existed), they're backfilled from the account endpoint on the fly.
 func (s *Service) Consumption(
 	ctx context.Context, chatID int64, from, to time.Time, groupBy string,
 ) ([]ConsumptionPoint, error) {
@@ -615,14 +617,37 @@ func (s *Service) Consumption(
 	if err != nil {
 		return nil, err
 	}
-	if !ok || len(chat.OctopusAPIKeyCiphertext) == 0 || chat.OctopusMPAN == "" || chat.OctopusMeterSerial == "" {
+	if !ok || len(chat.OctopusAPIKeyCiphertext) == 0 || chat.OctopusAccountNumber == "" {
 		return nil, fmt.Errorf("%w: link your octopus account first", ErrLinkInvalid)
 	}
 	plaintext, err := s.cipher.Decrypt(chat.OctopusAPIKeyCiphertext)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt api key: %w", err)
 	}
-	return s.octopus.ConsumptionWithKey(ctx, string(plaintext),
+	apiKey := string(plaintext)
+
+	// Backfill MPAN + MeterSerial if missing (legacy links).
+	if chat.OctopusMPAN == "" || chat.OctopusMeterSerial == "" {
+		info, err := s.octopus.AccountWithKey(ctx, apiKey, chat.OctopusAccountNumber)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrLinkInvalid, err)
+		}
+		if info.MPAN == "" || info.MeterSerial == "" {
+			return nil, fmt.Errorf("%w: no electricity meter on account", ErrLinkInvalid)
+		}
+		if err := s.links.SetOctopusLink(ctx, chatID, storage.OctopusLink{
+			AccountNumber: chat.OctopusAccountNumber,
+			KeyCiphertext: chat.OctopusAPIKeyCiphertext,
+			MPAN:          info.MPAN,
+			MeterSerial:   info.MeterSerial,
+		}); err != nil {
+			return nil, err
+		}
+		chat.OctopusMPAN = info.MPAN
+		chat.OctopusMeterSerial = info.MeterSerial
+	}
+
+	return s.octopus.ConsumptionWithKey(ctx, apiKey,
 		chat.OctopusMPAN, chat.OctopusMeterSerial, from, to, groupBy)
 }
 

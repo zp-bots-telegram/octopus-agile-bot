@@ -149,18 +149,18 @@
 		</CardHeader>
 		<CardBody>
 			{#if current}
-				<p class="mb-4 text-sm text-dark/80 dark:text-light/80">
+				<p class="mb-4 text-sm text-dark/80">
 					Currently <strong>{current.region}</strong> — {current.region_name}
 				</p>
 			{:else}
-				<p class="mb-4 text-sm text-dark/80 dark:text-light/80">No region set yet.</p>
+				<p class="mb-4 text-sm text-dark/80">No region set yet.</p>
 			{/if}
 
 			<div class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
 				<label class="text-sm">
-					<span class="text-dark/80 dark:text-light/80">Postcode</span>
+					<span class="text-dark/80">Postcode</span>
 					<input
-						class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1 uppercase"
+						class="mt-1 w-full rounded border border-light-300 bg-transparent px-2 py-1 uppercase"
 						bind:value={postcode}
 						placeholder="SW1A 1AA"
 					/>
@@ -168,13 +168,13 @@
 				<Button onclick={savePostcode}>Look up</Button>
 			</div>
 
-			<details class="text-sm text-dark/80 dark:text-light/80">
+			<details class="text-sm text-dark/80">
 				<summary class="cursor-pointer">…or set the letter directly</summary>
 				<div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
 					<label>
-						<span class="text-dark/80 dark:text-light/80">Letter (A–P)</span>
+						<span class="text-dark/80">Letter (A–P)</span>
 						<input
-							class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1 uppercase"
+							class="mt-1 w-full rounded border border-light-300 bg-transparent px-2 py-1 uppercase"
 							bind:value={letter}
 							maxlength="1"
 						/>
@@ -190,7 +190,7 @@
 			<CardTitle>Price alert</CardTitle>
 		</CardHeader>
 		<CardBody>
-			<p class="mb-3 text-sm text-dark/80 dark:text-light/80">
+			<p class="mb-3 text-sm text-dark/80">
 				I'll message you ~10 minutes before a half-hour slot drops below this threshold
 				(inc VAT, p/kWh). Use <strong>0</strong> to alert only on negative prices.
 			</p>
@@ -213,9 +213,9 @@
 
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] items-end">
 				<label class="text-sm">
-					<span class="text-dark/80 dark:text-light/80">Threshold (p/kWh)</span>
+					<span class="text-dark/80">Threshold (p/kWh)</span>
 					<input
-						class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+						class="mt-1 w-full rounded border border-light-300 bg-transparent px-2 py-1"
 						type="number"
 						step="0.1"
 						bind:value={alertThreshold}
@@ -236,7 +236,7 @@
 			<CardTitle>Octopus account</CardTitle>
 		</CardHeader>
 		<CardBody>
-			<p class="mb-3 text-sm text-dark/80 dark:text-light/80">
+			<p class="mb-3 text-sm text-dark/80">
 				Link your Octopus account to unlock account-scoped features (current tariff,
 				consumption history). Find your API key and account number at
 				<a
@@ -268,17 +268,17 @@
 			{:else}
 				<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
 					<label class="text-sm">
-						<span class="text-dark/80 dark:text-light/80">Account number</span>
+						<span class="text-dark/80">Account number</span>
 						<input
-							class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+							class="mt-1 w-full rounded border border-light-300 bg-transparent px-2 py-1"
 							bind:value={octopusAccount}
 							placeholder="A-XXXXXXXX"
 						/>
 					</label>
 					<label class="text-sm">
-						<span class="text-dark/80 dark:text-light/80">API key</span>
+						<span class="text-dark/80">API key</span>
 						<input
-							class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+							class="mt-1 w-full rounded border border-light-300 bg-transparent px-2 py-1"
 							type="password"
 							autocomplete="off"
 							bind:value={octopusKey}

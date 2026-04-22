@@ -35,7 +35,7 @@
 
 <section class="mt-12 text-center">
 	<h1 class="mb-2 text-3xl font-bold">Octopus Agile Bot</h1>
-	<p class="mb-8 text-dark/80 dark:text-light/80">
+	<p class="mb-8 text-dark/80">
 		Find the cheapest times to use lots of electricity. Log in with the same Telegram account
 		you use to chat with the bot.
 	</p>

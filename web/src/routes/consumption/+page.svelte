@@ -61,25 +61,25 @@
 			<CardBody>
 				<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] items-end">
 					<label class="text-sm">
-						<span class="text-dark/80 dark:text-light/80">From</span>
+						<span class="text-dark/80">From</span>
 						<input
-							class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+							class="mt-1 w-full rounded border border-light-300 bg-transparent px-2 py-1"
 							type="date"
 							bind:value={from}
 						/>
 					</label>
 					<label class="text-sm">
-						<span class="text-dark/80 dark:text-light/80">To</span>
+						<span class="text-dark/80">To</span>
 						<input
-							class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+							class="mt-1 w-full rounded border border-light-300 bg-transparent px-2 py-1"
 							type="date"
 							bind:value={to}
 						/>
 					</label>
 					<label class="text-sm">
-						<span class="text-dark/80 dark:text-light/80">Group by</span>
+						<span class="text-dark/80">Group by</span>
 						<select
-							class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+							class="mt-1 w-full rounded border border-light-300 bg-transparent px-2 py-1"
 							bind:value={groupBy}
 						>
 							<option value="">Half-hourly</option>
@@ -98,20 +98,20 @@
 			<CardHeader>
 				<div class="flex w-full items-center justify-between">
 					<CardTitle>Usage</CardTitle>
-					<span class="text-sm text-dark/60 dark:text-light/60">
+					<span class="text-sm text-dark/60">
 						Total: {total.toFixed(2)} kWh
 					</span>
 				</div>
 			</CardHeader>
 			<CardBody>
 				{#if points.length === 0}
-					<p class="text-sm text-dark/60 dark:text-light/60">
+					<p class="text-sm text-dark/60">
 						No consumption recorded in this range.
 					</p>
 				{:else}
 					<div class="overflow-x-auto">
 						<table class="w-full text-sm">
-							<thead class="text-left text-dark/60 dark:text-light/60">
+							<thead class="text-left text-dark/60">
 								<tr>
 									<th class="py-1 pr-4 font-normal">From</th>
 									<th class="py-1 pr-4 font-normal">To</th>
@@ -120,7 +120,7 @@
 							</thead>
 							<tbody>
 								{#each points as p}
-									<tr class="border-t border-light-200 dark:border-dark-200">
+									<tr class="border-t border-light-200">
 										<td class="py-1 pr-4">{new Date(p.interval_start).toLocaleString()}</td>
 										<td class="py-1 pr-4">{new Date(p.interval_end).toLocaleString()}</td>
 										<td class="py-1 text-right tabular-nums">
