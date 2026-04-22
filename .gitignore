@@ -37,3 +37,4 @@ config.local.*
 # Built frontend is embedded into the Go binary at build time but not committed.
 internal/httpapi/webassets/*
 !internal/httpapi/webassets/.gitkeep
+/dogfood-output/
