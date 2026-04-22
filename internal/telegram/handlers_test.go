@@ -105,6 +105,9 @@ func (fakeOctopus) StandardUnitRates(context.Context, string, string, time.Time,
 	return nil, nil
 }
 func (fakeOctopus) RegionForPostcode(context.Context, string) (string, error) { return "C", nil }
+func (fakeOctopus) AccountWithKey(context.Context, string, string) (service.AccountInfo, error) {
+	return service.AccountInfo{}, nil
+}
 
 type fixedClock struct{ t time.Time }
 

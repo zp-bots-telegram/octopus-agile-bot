@@ -15,6 +15,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/zp-bots-telegram/octopus-agile-bot/internal/agile"
 	"github.com/zp-bots-telegram/octopus-agile-bot/internal/config"
+	"github.com/zp-bots-telegram/octopus-agile-bot/internal/cryptobox"
 	"github.com/zp-bots-telegram/octopus-agile-bot/internal/httpapi"
 	"github.com/zp-bots-telegram/octopus-agile-bot/internal/octopus"
 	"github.com/zp-bots-telegram/octopus-agile-bot/internal/scheduler"
@@ -46,6 +47,16 @@ func New(ctx context.Context, cfg *config.Loaded) (*App, error) {
 
 	octo := octopus.NewClient(cfg.OctopusAPIKey)
 
+	var cipher service.Cipher
+	if cfg.EncryptionKey != "" {
+		c, err := cryptobox.New([]byte(cfg.EncryptionKey))
+		if err != nil {
+			_ = store.Close()
+			return nil, fmt.Errorf("cryptobox: %w", err)
+		}
+		cipher = c
+	}
+
 	b, err := bot.New(cfg.TelegramBotToken, bot.WithSkipGetMe())
 	if err != nil {
 		_ = store.Close()
@@ -54,6 +65,8 @@ func New(ctx context.Context, cfg *config.Loaded) (*App, error) {
 
 	svc := service.New(service.Deps{
 		Chats: store, Subs: store, Plans: store, Rates: store, PriceAlerts: store,
+		OctopusLinks:  store,
+		Cipher:        cipher,
 		Octopus:       octopusAdapter{c: octo},
 		Notifier:      telegram.NewNotifier(b),
 		Log:           log,
@@ -186,6 +199,33 @@ func (a octopusAdapter) StandardUnitRates(
 
 func (a octopusAdapter) RegionForPostcode(ctx context.Context, postcode string) (string, error) {
 	return a.c.RegionForPostcode(ctx, postcode)
+}
+
+func (a octopusAdapter) AccountWithKey(ctx context.Context, apiKey, accountNumber string) (service.AccountInfo, error) {
+	acc, err := a.c.WithAPIKey(apiKey).Account(ctx, accountNumber)
+	if err != nil {
+		return service.AccountInfo{}, err
+	}
+	info := service.AccountInfo{Number: acc.Number}
+	for _, p := range acc.Properties {
+		info.AddressLine1 = p.AddressLine1
+		info.Postcode = p.Postcode
+		for _, mp := range p.ElectricityMeterPoints {
+			if mp.IsExport {
+				continue
+			}
+			info.MPAN = mp.MPAN
+			// Latest agreement = most recent valid_from.
+			for _, ag := range mp.Agreements {
+				if ag.ValidTo == "" || ag.ValidTo > time.Now().UTC().Format(time.RFC3339) {
+					info.CurrentTariff = ag.TariffCode
+				}
+			}
+			break
+		}
+		break
+	}
+	return info, nil
 }
 
 // newLogger builds a slog.Logger honouring LOG_FORMAT + LOG_LEVEL.

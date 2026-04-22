@@ -17,6 +17,7 @@ type fakeOctopus struct {
 	prodCode string
 	rates    []agile.HalfHour
 	err      error
+	linkErr  error
 }
 
 func (f *fakeOctopus) LatestAgileProduct(ctx context.Context) (ProductInfo, error) {
@@ -30,6 +31,12 @@ func (f *fakeOctopus) StandardUnitRates(ctx context.Context, _, _ string, _, _ t
 }
 func (f *fakeOctopus) RegionForPostcode(ctx context.Context, postcode string) (string, error) {
 	return "C", nil
+}
+func (f *fakeOctopus) AccountWithKey(ctx context.Context, apiKey, accountNumber string) (AccountInfo, error) {
+	if f.linkErr != nil {
+		return AccountInfo{}, f.linkErr
+	}
+	return AccountInfo{Number: accountNumber, CurrentTariff: "E-1R-AGILE-24-10-01-C", MPAN: "1200000000000"}, nil
 }
 
 type fakeNotifier struct {

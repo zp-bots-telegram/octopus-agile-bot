@@ -106,6 +106,10 @@ type Chat struct {
 	ChatID   int64
 	Region   string
 	Timezone string
+	// OctopusAccountNumber + encrypted api key are populated only once the user links
+	// their account. OctopusAPIKeyCiphertext is nil for unlinked chats.
+	OctopusAccountNumber    string
+	OctopusAPIKeyCiphertext []byte
 }
 
 // UpsertChatRegion creates or updates the chat's region. Leaves the timezone alone if
@@ -125,16 +129,40 @@ func (s *Store) SetChatTimezone(ctx context.Context, chatID int64, tz string) er
 
 func (s *Store) GetChat(ctx context.Context, chatID int64) (Chat, bool, error) {
 	var c Chat
+	var accountNum sql.NullString
+	var ciphertext []byte
 	err := s.db.QueryRowContext(ctx,
-		`SELECT chat_id, region, timezone FROM chats WHERE chat_id=?`, chatID,
-	).Scan(&c.ChatID, &c.Region, &c.Timezone)
+		`SELECT chat_id, region, timezone, octopus_account_number, octopus_api_key_ciphertext FROM chats WHERE chat_id=?`,
+		chatID,
+	).Scan(&c.ChatID, &c.Region, &c.Timezone, &accountNum, &ciphertext)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Chat{}, false, nil
 	}
 	if err != nil {
 		return Chat{}, false, err
 	}
+	if accountNum.Valid {
+		c.OctopusAccountNumber = accountNum.String
+	}
+	c.OctopusAPIKeyCiphertext = ciphertext
 	return c, true, nil
+}
+
+// SetOctopusLink persists the (account_number, encrypted_api_key) pair on the chat.
+// Pass empty/nil to clear.
+func (s *Store) SetOctopusLink(ctx context.Context, chatID int64, accountNumber string, ciphertext []byte) error {
+	if accountNumber == "" {
+		_, err := s.db.ExecContext(ctx,
+			`UPDATE chats SET octopus_account_number=NULL, octopus_api_key_ciphertext=NULL WHERE chat_id=?`,
+			chatID,
+		)
+		return err
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE chats SET octopus_account_number=?, octopus_api_key_ciphertext=? WHERE chat_id=?`,
+		accountNumber, ciphertext, chatID,
+	)
+	return err
 }
 
 // DistinctRegions returns every region letter currently in use. Useful for the rate

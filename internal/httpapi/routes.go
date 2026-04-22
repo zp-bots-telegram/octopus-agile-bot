@@ -47,6 +47,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/alert", s.requireSession(s.handleGetAlert))
 	s.mux.HandleFunc("PUT /api/alert", s.requireSession(s.handlePutAlert))
 	s.mux.HandleFunc("DELETE /api/alert", s.requireSession(s.handleDeleteAlert))
+
+	s.mux.HandleFunc("GET /api/octopus", s.requireSession(s.handleGetOctopus))
+	s.mux.HandleFunc("PUT /api/octopus", s.requireSession(s.handlePutOctopus))
+	s.mux.HandleFunc("DELETE /api/octopus", s.requireSession(s.handleDeleteOctopus))
 }
 
 // ---- public --------------------------------------------------------------
@@ -402,6 +406,60 @@ func (s *Server) handlePutAlert(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteAlert(w http.ResponseWriter, r *http.Request) {
 	if err := s.svc.DisablePriceAlert(r.Context(), claimsOf(r).TelegramUserID); err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusNoContent, nil)
+}
+
+// ---- octopus link --------------------------------------------------------
+
+type octopusLinkBody struct {
+	AccountNumber string `json:"account_number"`
+	APIKey        string `json:"api_key"`
+}
+
+func (s *Server) handleGetOctopus(w http.ResponseWriter, r *http.Request) {
+	la, err := s.svc.LinkedAccountFor(r.Context(), claimsOf(r).TelegramUserID)
+	if err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"linked":         la.Linked,
+		"account_number": la.AccountNumber,
+	})
+}
+
+func (s *Server) handlePutOctopus(w http.ResponseWriter, r *http.Request) {
+	var body octopusLinkBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	info, err := s.svc.LinkOctopusAccount(r.Context(), claimsOf(r).TelegramUserID, body.AccountNumber, body.APIKey)
+	if err != nil {
+		switch {
+		case errors.Is(err, service.ErrLinkNotConfigured):
+			writeError(w, http.StatusServiceUnavailable, err.Error())
+		case errors.Is(err, service.ErrLinkInvalid):
+			writeError(w, http.StatusBadRequest, err.Error())
+		default:
+			writeServiceErr(w, err)
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"account_number": info.Number,
+		"address_line_1": info.AddressLine1,
+		"postcode":       info.Postcode,
+		"current_tariff": info.CurrentTariff,
+		"mpan":           info.MPAN,
+	})
+}
+
+func (s *Server) handleDeleteOctopus(w http.ResponseWriter, r *http.Request) {
+	if err := s.svc.UnlinkOctopusAccount(r.Context(), claimsOf(r).TelegramUserID); err != nil {
 		writeServiceErr(w, err)
 		return
 	}

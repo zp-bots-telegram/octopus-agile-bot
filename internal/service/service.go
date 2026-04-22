@@ -40,6 +40,17 @@ type ChargePlanRepo interface {
 	MarkChargePlanDispatched(ctx context.Context, chatID, planID int64, targetDate time.Time) (bool, error)
 }
 
+type OctopusLinkRepo interface {
+	SetOctopusLink(ctx context.Context, chatID int64, accountNumber string, ciphertext []byte) error
+}
+
+// Cipher is the minimal encryption surface the service needs — implemented by
+// internal/cryptobox in prod, by a passthrough fake in tests.
+type Cipher interface {
+	Encrypt(plaintext []byte) ([]byte, error)
+	Decrypt(ciphertext []byte) ([]byte, error)
+}
+
 type PriceAlertRepo interface {
 	SetPriceAlert(ctx context.Context, a storage.PriceAlert) error
 	DeletePriceAlert(ctx context.Context, chatID int64) error
@@ -59,6 +70,20 @@ type OctopusClient interface {
 	LatestAgileProduct(ctx context.Context) (ProductInfo, error)
 	StandardUnitRates(ctx context.Context, productCode, tariffCode string, from, to time.Time) ([]agile.HalfHour, error)
 	RegionForPostcode(ctx context.Context, postcode string) (string, error)
+	// AccountWithKey fetches /v1/accounts/{number}/ authenticated with the supplied
+	// per-user API key (not the global one). Used to validate a user's credentials
+	// when linking their account.
+	AccountWithKey(ctx context.Context, apiKey, accountNumber string) (AccountInfo, error)
+}
+
+// AccountInfo is what the service layer surfaces from an Octopus account. Kept small
+// — we only expose what the UI cares about, not the full REST payload.
+type AccountInfo struct {
+	Number        string
+	AddressLine1  string
+	Postcode      string
+	CurrentTariff string
+	MPAN          string
 }
 
 // ProductInfo is the service-layer view of an Octopus product — only what we need.
@@ -89,6 +114,8 @@ type Service struct {
 	plans     ChargePlanRepo
 	rates     RateRepo
 	alerts    PriceAlertRepo
+	links     OctopusLinkRepo
+	cipher    Cipher
 	octopus   OctopusClient
 	notifier  Notifier
 	log       *slog.Logger
@@ -98,15 +125,17 @@ type Service struct {
 }
 
 type Deps struct {
-	Chats       ChatRepo
-	Subs        SubscriptionRepo
-	Plans       ChargePlanRepo
-	Rates       RateRepo
-	PriceAlerts PriceAlertRepo
-	Octopus     OctopusClient
-	Notifier    Notifier
-	Log         *slog.Logger
-	Clock       Clock
+	Chats        ChatRepo
+	Subs         SubscriptionRepo
+	Plans        ChargePlanRepo
+	Rates        RateRepo
+	PriceAlerts  PriceAlertRepo
+	OctopusLinks OctopusLinkRepo
+	Cipher       Cipher
+	Octopus      OctopusClient
+	Notifier     Notifier
+	Log          *slog.Logger
+	Clock        Clock
 	// DefaultTZ is used for chats that haven't set their own.
 	DefaultTZ *time.Location
 	// DefaultRegion is used before /region is set; must be a single letter A-P.
@@ -129,6 +158,8 @@ func New(d Deps) *Service {
 		plans:     d.Plans,
 		rates:     d.Rates,
 		alerts:    d.PriceAlerts,
+		links:     d.OctopusLinks,
+		cipher:    d.Cipher,
 		octopus:   d.Octopus,
 		notifier:  d.Notifier,
 		log:       d.Log,
@@ -450,6 +481,80 @@ func (s *Service) DispatchPriceAlerts(ctx context.Context) ([]PriceAlertDispatch
 		}
 	}
 	return out, nil
+}
+
+// ---- octopus account link ------------------------------------------------
+
+var (
+	ErrLinkNotConfigured = errors.New("octopus account linking is not configured (missing ENCRYPTION_KEY)")
+	ErrLinkInvalid       = errors.New("octopus account validation failed — check account number and API key")
+)
+
+// LinkedAccount is the read-safe view of a chat's Octopus link — no key material.
+type LinkedAccount struct {
+	AccountNumber string
+	Info          AccountInfo
+	Linked        bool
+}
+
+// LinkOctopusAccount validates (account_number, api_key) by hitting /v1/accounts/...,
+// then encrypts and stores the key on the chat row.
+func (s *Service) LinkOctopusAccount(ctx context.Context, chatID int64, accountNumber, apiKey string) (AccountInfo, error) {
+	if s.cipher == nil || s.links == nil {
+		return AccountInfo{}, ErrLinkNotConfigured
+	}
+	if strings.TrimSpace(accountNumber) == "" || strings.TrimSpace(apiKey) == "" {
+		return AccountInfo{}, fmt.Errorf("%w: account number and api key are both required", ErrLinkInvalid)
+	}
+	// Make sure the chat row exists (UpsertChatRegion is a no-op on the region if the
+	// chat is new — we use the default region as a placeholder until the user sets
+	// one). This is a safety net for web-only flows where the chat was created by
+	// the login callback but no region is set yet.
+	if chat, ok, err := s.chats.GetChat(ctx, chatID); err != nil {
+		return AccountInfo{}, err
+	} else if !ok {
+		if s.defaultRg == "" {
+			return AccountInfo{}, ErrNoChat
+		}
+		if err := s.chats.UpsertChatRegion(ctx, chatID, s.defaultRg); err != nil {
+			return AccountInfo{}, err
+		}
+		_ = chat
+	}
+
+	info, err := s.octopus.AccountWithKey(ctx, apiKey, accountNumber)
+	if err != nil {
+		return AccountInfo{}, fmt.Errorf("%w: %v", ErrLinkInvalid, err)
+	}
+
+	ct, err := s.cipher.Encrypt([]byte(apiKey))
+	if err != nil {
+		return AccountInfo{}, fmt.Errorf("encrypt: %w", err)
+	}
+	if err := s.links.SetOctopusLink(ctx, chatID, accountNumber, ct); err != nil {
+		return AccountInfo{}, err
+	}
+	return info, nil
+}
+
+// UnlinkOctopusAccount clears the stored account number + key for the chat.
+func (s *Service) UnlinkOctopusAccount(ctx context.Context, chatID int64) error {
+	if s.links == nil {
+		return ErrLinkNotConfigured
+	}
+	return s.links.SetOctopusLink(ctx, chatID, "", nil)
+}
+
+// LinkedAccountFor returns the current link state — never includes the decrypted key.
+func (s *Service) LinkedAccountFor(ctx context.Context, chatID int64) (LinkedAccount, error) {
+	chat, ok, err := s.chats.GetChat(ctx, chatID)
+	if err != nil {
+		return LinkedAccount{}, err
+	}
+	if !ok || chat.OctopusAccountNumber == "" {
+		return LinkedAccount{Linked: false}, nil
+	}
+	return LinkedAccount{Linked: true, AccountNumber: chat.OctopusAccountNumber}, nil
 }
 
 // FormatPriceAlert composes the per-alert message.

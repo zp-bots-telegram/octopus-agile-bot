@@ -104,6 +104,49 @@ func (c *Client) LatestAgileProduct(ctx context.Context) (Product, error) {
 	return best, nil
 }
 
+// Account is a subset of /v1/accounts/{account_number}/. Many fields omitted.
+type Account struct {
+	Number     string `json:"number"`
+	Properties []struct {
+		ID                     int64   `json:"id"`
+		MovedInAt              string  `json:"moved_in_at"`
+		MovedOutAt             *string `json:"moved_out_at"`
+		AddressLine1           string  `json:"address_line_1"`
+		Postcode               string  `json:"postcode"`
+		ElectricityMeterPoints []struct {
+			MPAN         string `json:"mpan"`
+			ProfileClass int    `json:"profile_class"`
+			IsExport     bool   `json:"is_export"`
+			Meters       []struct {
+				SerialNumber string `json:"serial_number"`
+			} `json:"meters"`
+			Agreements []struct {
+				TariffCode string `json:"tariff_code"`
+				ValidFrom  string `json:"valid_from"`
+				ValidTo    string `json:"valid_to"`
+			} `json:"agreements"`
+		} `json:"electricity_meter_points"`
+	} `json:"properties"`
+}
+
+// WithAPIKey returns a copy of c with a different API key — for per-user authenticated
+// calls without mutating the global client.
+func (c *Client) WithAPIKey(key string) *Client {
+	dup := *c
+	dup.apiKey = key
+	return &dup
+}
+
+// Account fetches /v1/accounts/{number}/ using the client's API key.
+func (c *Client) Account(ctx context.Context, accountNumber string) (Account, error) {
+	u := fmt.Sprintf("%s/v1/accounts/%s/", c.base, accountNumber)
+	var out Account
+	if err := c.getJSON(ctx, u, &out); err != nil {
+		return Account{}, err
+	}
+	return out, nil
+}
+
 // GridSupplyPoint is one entry of /v1/industry/grid-supply-points/.
 type GridSupplyPoint struct {
 	GroupID string `json:"group_id"`

@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -37,6 +38,12 @@ func (fakeOctopus) RegionForPostcode(_ context.Context, postcode string) (string
 		return "C", nil
 	}
 	return "A", nil
+}
+func (fakeOctopus) AccountWithKey(_ context.Context, apiKey, accountNumber string) (service.AccountInfo, error) {
+	if apiKey == "bad" {
+		return service.AccountInfo{}, fmt.Errorf("401 Unauthorized")
+	}
+	return service.AccountInfo{Number: accountNumber, CurrentTariff: "E-1R-AGILE-24-10-01-C"}, nil
 }
 
 type fakeNotifier struct{}

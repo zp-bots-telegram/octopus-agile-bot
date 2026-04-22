@@ -82,7 +82,54 @@
 		}
 	}
 
-	onMount(load);
+	let octopusLinked = $state(false);
+	let octopusAccount = $state('');
+	let octopusKey = $state('');
+	let octopusInfo = $state<{ current_tariff: string; mpan: string; postcode: string } | null>(null);
+	let octopusError = $state<string | null>(null);
+	let octopusSaved = $state(false);
+
+	async function loadOctopus() {
+		try {
+			const r = await api.getOctopus();
+			octopusLinked = r.linked;
+			octopusAccount = r.account_number;
+		} catch (e) {
+			octopusError = e instanceof ApiError ? e.message : String(e);
+		}
+	}
+
+	async function linkOctopus() {
+		octopusError = null;
+		octopusSaved = false;
+		try {
+			const info = await api.linkOctopus(octopusAccount.trim(), octopusKey.trim());
+			octopusInfo = info;
+			octopusKey = '';
+			octopusLinked = true;
+			octopusSaved = true;
+		} catch (e) {
+			octopusError = e instanceof ApiError ? e.message : String(e);
+		}
+	}
+
+	async function unlinkOctopus() {
+		octopusError = null;
+		try {
+			await api.unlinkOctopus();
+			octopusLinked = false;
+			octopusAccount = '';
+			octopusInfo = null;
+			octopusSaved = true;
+		} catch (e) {
+			octopusError = e instanceof ApiError ? e.message : String(e);
+		}
+	}
+
+	onMount(async () => {
+		await load();
+		await loadOctopus();
+	});
 </script>
 
 <h2 class="mb-4 text-xl font-semibold">Settings</h2>
@@ -190,4 +237,69 @@
 			</button>
 		{/if}
 	</div>
+</section>
+
+<section class="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+	<h3 class="mb-2 font-semibold">Octopus account</h3>
+	<p class="mb-3 text-sm text-slate-600">
+		Link your Octopus account to unlock account-scoped features (current tariff,
+		upcoming: consumption history). Find your API key at
+		<a
+			class="text-blue-600 underline"
+			target="_blank"
+			rel="noreferrer"
+			href="https://octopus.energy/dashboard/new/accounts/personal-details/api-access"
+			>octopus.energy → API access</a
+		>
+		and your account number (A-XXXXXXXX) on the same page.
+	</p>
+
+	{#if octopusError}
+		<p class="mb-2 text-sm text-red-600">{octopusError}</p>
+	{/if}
+	{#if octopusSaved}
+		<p class="mb-2 text-sm text-green-600">Saved.</p>
+	{/if}
+
+	{#if octopusLinked}
+		<p class="mb-3 text-sm">
+			Linked: <strong>{octopusAccount}</strong>
+			{#if octopusInfo}
+				— tariff {octopusInfo.current_tariff || 'unknown'}, MPAN {octopusInfo.mpan || '—'}
+			{/if}
+		</p>
+		<button
+			class="rounded border border-red-300 px-4 py-1.5 text-red-700 hover:bg-red-50"
+			onclick={unlinkOctopus}
+		>
+			Unlink
+		</button>
+	{:else}
+		<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto]">
+			<label class="text-sm">
+				<span class="text-slate-600">Account number</span>
+				<input
+					class="mt-1 w-full rounded border border-slate-300 px-2 py-1 uppercase"
+					bind:value={octopusAccount}
+					placeholder="A-XXXXXXXX"
+				/>
+			</label>
+			<label class="text-sm">
+				<span class="text-slate-600">API key</span>
+				<input
+					class="mt-1 w-full rounded border border-slate-300 px-2 py-1"
+					type="password"
+					autocomplete="off"
+					bind:value={octopusKey}
+					placeholder="sk_live_…"
+				/>
+			</label>
+			<button
+				class="self-end rounded bg-blue-600 px-4 py-1.5 text-white hover:bg-blue-700"
+				onclick={linkOctopus}
+			>
+				Link
+			</button>
+		</div>
+	{/if}
 </section>

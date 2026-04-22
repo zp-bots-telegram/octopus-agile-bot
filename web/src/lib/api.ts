@@ -113,6 +113,18 @@ export const api = {
 		}),
 	deleteSubscription: () => request<void>('DELETE', '/api/subscription'),
 
+	getOctopus: () =>
+		request<{ linked: boolean; account_number: string }>('GET', '/api/octopus'),
+	linkOctopus: (accountNumber: string, apiKey: string) =>
+		request<{
+			account_number: string;
+			address_line_1: string;
+			postcode: string;
+			current_tariff: string;
+			mpan: string;
+		}>('PUT', '/api/octopus', { account_number: accountNumber, api_key: apiKey }),
+	unlinkOctopus: () => request<void>('DELETE', '/api/octopus'),
+
 	getAlert: () =>
 		request<{ threshold_inc_vat: number; enabled: boolean } | null>('GET', '/api/alert'),
 	putAlert: (thresholdIncVAT: number) =>
