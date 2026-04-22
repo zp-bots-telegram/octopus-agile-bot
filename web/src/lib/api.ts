@@ -96,6 +96,13 @@ export const api = {
 
 	cheapest: (duration: string) => request<Window>('GET', `/api/cheapest?duration=${duration}`),
 	next: (threshold: number) => request<Slot>('GET', `/api/next?threshold=${threshold}`),
+	rates: (fromISO?: string, toISO?: string) => {
+		const q = new URLSearchParams();
+		if (fromISO) q.set('from', fromISO);
+		if (toISO) q.set('to', toISO);
+		const qs = q.toString();
+		return request<Slot[]>('GET', `/api/rates${qs ? '?' + qs : ''}`);
+	},
 	status: () => request<Status>('GET', '/api/status'),
 
 	getSubscription: () => request<Subscription>('GET', '/api/subscription'),
@@ -105,6 +112,12 @@ export const api = {
 			notify_at_local: notifyAtLocal
 		}),
 	deleteSubscription: () => request<void>('DELETE', '/api/subscription'),
+
+	getAlert: () =>
+		request<{ threshold_inc_vat: number; enabled: boolean } | null>('GET', '/api/alert'),
+	putAlert: (thresholdIncVAT: number) =>
+		request<void>('PUT', '/api/alert', { threshold_inc_vat: thresholdIncVAT }),
+	deleteAlert: () => request<void>('DELETE', '/api/alert'),
 
 	listChargePlans: () => request<ChargePlan[]>('GET', '/api/charge-plans'),
 	createChargePlan: (

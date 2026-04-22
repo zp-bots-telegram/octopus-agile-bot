@@ -365,6 +365,80 @@ func (s *Store) Rates(ctx context.Context, region string, from, to time.Time) ([
 	return out, rows.Err()
 }
 
+// ---- price alerts ---------------------------------------------------------
+
+type PriceAlert struct {
+	ChatID          int64
+	ThresholdIncVAT float64 // p/kWh inc VAT; fire when a rate is strictly less than this
+	Enabled         bool
+}
+
+func (s *Store) SetPriceAlert(ctx context.Context, a PriceAlert) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO price_alerts(chat_id, threshold_inc_vat, enabled)
+		VALUES(?, ?, ?)
+		ON CONFLICT(chat_id) DO UPDATE SET
+		  threshold_inc_vat = excluded.threshold_inc_vat,
+		  enabled           = excluded.enabled
+	`, a.ChatID, a.ThresholdIncVAT, boolInt(a.Enabled))
+	return err
+}
+
+func (s *Store) DeletePriceAlert(ctx context.Context, chatID int64) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM price_alerts WHERE chat_id=?`, chatID)
+	return err
+}
+
+func (s *Store) GetPriceAlert(ctx context.Context, chatID int64) (PriceAlert, bool, error) {
+	var a PriceAlert
+	var en int
+	err := s.db.QueryRowContext(ctx, `
+		SELECT chat_id, threshold_inc_vat, enabled FROM price_alerts WHERE chat_id=?`, chatID,
+	).Scan(&a.ChatID, &a.ThresholdIncVAT, &en)
+	if errors.Is(err, sql.ErrNoRows) {
+		return PriceAlert{}, false, nil
+	}
+	if err != nil {
+		return PriceAlert{}, false, err
+	}
+	a.Enabled = en == 1
+	return a, true, nil
+}
+
+func (s *Store) ListEnabledPriceAlerts(ctx context.Context) ([]PriceAlert, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT chat_id, threshold_inc_vat, enabled FROM price_alerts WHERE enabled=1 ORDER BY chat_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PriceAlert
+	for rows.Next() {
+		var a PriceAlert
+		var en int
+		if err := rows.Scan(&a.ChatID, &a.ThresholdIncVAT, &en); err != nil {
+			return nil, err
+		}
+		a.Enabled = en == 1
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// MarkPriceAlertDispatched returns true on first insert for this (chat_id, run_start),
+// false if the run had already been notified.
+func (s *Store) MarkPriceAlertDispatched(ctx context.Context, chatID int64, runStart time.Time) (bool, error) {
+	res, err := s.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO price_alert_log(chat_id, run_start)
+		VALUES(?, ?)
+	`, chatID, runStart.UTC().Format(time.RFC3339))
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 // ---- dispatch log ---------------------------------------------------------
 
 // MarkCharnPlanDispatched records that a plan has been dispatched for a target date.

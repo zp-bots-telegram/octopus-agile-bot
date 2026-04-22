@@ -53,7 +53,7 @@ func New(ctx context.Context, cfg *config.Loaded) (*App, error) {
 	}
 
 	svc := service.New(service.Deps{
-		Chats: store, Subs: store, Plans: store, Rates: store,
+		Chats: store, Subs: store, Plans: store, Rates: store, PriceAlerts: store,
 		Octopus:       octopusAdapter{c: octo},
 		Notifier:      telegram.NewNotifier(b),
 		Log:           log,

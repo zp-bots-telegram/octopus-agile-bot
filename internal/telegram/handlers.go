@@ -57,6 +57,7 @@ func (h *Handlers) specs() []commandSpec {
 		{"charge", "Recurring EV charge plan, e.g. /charge 4h 22:00-07:00", h.Charge},
 		{"charges", "List active charge plans", h.Charges},
 		{"cancelcharge", "Cancel a charge plan by id", h.CancelCharge},
+		{"alerts", "Alert me when prices go low, e.g. /alerts 0 or /alerts off", h.Alerts},
 		{"status", "Show your settings", h.StatusCmd},
 	}
 }
@@ -142,6 +143,7 @@ func (h *Handlers) Help(ctx context.Context, b *bot.Bot, u *models.Update) {
 /charge <duration> <HH:MM>-<HH:MM> — daily EV-charge plan, e.g. /charge 4h 22:00-07:00
 /charges — list active charge plans
 /cancelcharge <id>
+/alerts <threshold|off> — notify ~10 min before prices go below <threshold> p/kWh (default 0 = negative only)
 /status — show your settings`)
 }
 
@@ -346,6 +348,45 @@ func (h *Handlers) CancelCharge(ctx context.Context, b *bot.Bot, u *models.Updat
 	h.reply(ctx, b, u, fmt.Sprintf("Cancelled charge plan #%d.", id))
 }
 
+// Alerts lets the user enable/disable the "price dropped below threshold" notification.
+// Usage:
+//
+//	/alerts           → default (threshold 0, i.e. notify on any negative slot)
+//	/alerts 15        → notify when a slot goes below 15 p/kWh inc VAT
+//	/alerts off       → disable
+func (h *Handlers) Alerts(ctx context.Context, b *bot.Bot, u *models.Update) {
+	if !h.gate(ctx, b, u) {
+		return
+	}
+	args := argsOf(u.Message)
+	if len(args) == 1 && strings.EqualFold(args[0], "off") {
+		if err := h.svc.DisablePriceAlert(ctx, u.Message.Chat.ID); err != nil {
+			h.reply(ctx, b, u, friendly(err))
+			return
+		}
+		h.reply(ctx, b, u, "Price alerts disabled.")
+		return
+	}
+	threshold := 0.0
+	if len(args) == 1 {
+		t, err := strconv.ParseFloat(args[0], 64)
+		if err != nil {
+			h.reply(ctx, b, u, "Usage: /alerts [threshold | off], e.g. /alerts 0 or /alerts 15")
+			return
+		}
+		threshold = t
+	}
+	if err := h.svc.SetPriceAlert(ctx, u.Message.Chat.ID, threshold); err != nil {
+		h.reply(ctx, b, u, friendly(err))
+		return
+	}
+	tag := fmt.Sprintf("below %.2f p/kWh", threshold)
+	if threshold <= 0 {
+		tag = "go negative"
+	}
+	h.reply(ctx, b, u, "Alerts on: I'll message you ~10 min before prices "+tag+".")
+}
+
 func (h *Handlers) StatusCmd(ctx context.Context, b *bot.Bot, u *models.Update) {
 	if !h.gate(ctx, b, u) {
 		return
@@ -371,6 +412,15 @@ func (h *Handlers) StatusCmd(ctx context.Context, b *bot.Bot, u *models.Update) 
 			fmt.Fprintf(&sb, "  #%d — %s per day, %s–%s\n",
 				p.ID, roundedDur(p.Duration), p.WindowStartLocal, p.WindowEndLocal)
 		}
+	}
+	if st.PriceAlert != nil && st.PriceAlert.Enabled {
+		if st.PriceAlert.ThresholdIncVAT <= 0 {
+			sb.WriteString("Price alert: on (negative prices)\n")
+		} else {
+			fmt.Fprintf(&sb, "Price alert: on (< %.2f p/kWh)\n", st.PriceAlert.ThresholdIncVAT)
+		}
+	} else {
+		sb.WriteString("Price alert: off\n")
 	}
 	h.reply(ctx, b, u, strings.TrimRight(sb.String(), "\n"))
 }

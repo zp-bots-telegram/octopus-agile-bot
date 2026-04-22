@@ -40,6 +40,14 @@ type ChargePlanRepo interface {
 	MarkChargePlanDispatched(ctx context.Context, chatID, planID int64, targetDate time.Time) (bool, error)
 }
 
+type PriceAlertRepo interface {
+	SetPriceAlert(ctx context.Context, a storage.PriceAlert) error
+	DeletePriceAlert(ctx context.Context, chatID int64) error
+	GetPriceAlert(ctx context.Context, chatID int64) (storage.PriceAlert, bool, error)
+	ListEnabledPriceAlerts(ctx context.Context) ([]storage.PriceAlert, error)
+	MarkPriceAlertDispatched(ctx context.Context, chatID int64, runStart time.Time) (bool, error)
+}
+
 type RateRepo interface {
 	UpsertRates(ctx context.Context, region, tariffCode string, rates []agile.HalfHour) error
 	Rates(ctx context.Context, region string, from, to time.Time) ([]agile.HalfHour, error)
@@ -80,6 +88,7 @@ type Service struct {
 	subs      SubscriptionRepo
 	plans     ChargePlanRepo
 	rates     RateRepo
+	alerts    PriceAlertRepo
 	octopus   OctopusClient
 	notifier  Notifier
 	log       *slog.Logger
@@ -89,14 +98,15 @@ type Service struct {
 }
 
 type Deps struct {
-	Chats    ChatRepo
-	Subs     SubscriptionRepo
-	Plans    ChargePlanRepo
-	Rates    RateRepo
-	Octopus  OctopusClient
-	Notifier Notifier
-	Log      *slog.Logger
-	Clock    Clock
+	Chats       ChatRepo
+	Subs        SubscriptionRepo
+	Plans       ChargePlanRepo
+	Rates       RateRepo
+	PriceAlerts PriceAlertRepo
+	Octopus     OctopusClient
+	Notifier    Notifier
+	Log         *slog.Logger
+	Clock       Clock
 	// DefaultTZ is used for chats that haven't set their own.
 	DefaultTZ *time.Location
 	// DefaultRegion is used before /region is set; must be a single letter A-P.
@@ -118,6 +128,7 @@ func New(d Deps) *Service {
 		subs:      d.Subs,
 		plans:     d.Plans,
 		rates:     d.Rates,
+		alerts:    d.PriceAlerts,
 		octopus:   d.Octopus,
 		notifier:  d.Notifier,
 		log:       d.Log,
@@ -186,6 +197,16 @@ func (s *Service) CheapestWindow(ctx context.Context, chatID int64, duration tim
 		return agile.Window{}, err
 	}
 	return agile.CheapestWindow(rates, duration, now, horizon)
+}
+
+// Rates returns the cached half-hour rates for the chat's region over [from, to].
+// Useful for rendering charts / tables — distinct from CheapestWindow which picks one.
+func (s *Service) Rates(ctx context.Context, chatID int64, from, to time.Time) ([]agile.HalfHour, error) {
+	chat, err := s.resolveChat(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+	return s.rates.Rates(ctx, chat.Region, from, to)
 }
 
 // NextBelowThreshold returns the next half-hour for this chat's region whose inc-VAT
@@ -259,6 +280,7 @@ type Status struct {
 	Timezone     string
 	Subscription *storage.Subscription
 	ChargePlans  []storage.ChargePlan
+	PriceAlert   *storage.PriceAlert
 }
 
 func (s *Service) Status(ctx context.Context, chatID int64) (Status, error) {
@@ -278,7 +300,171 @@ func (s *Service) Status(ctx context.Context, chatID int64) (Status, error) {
 	if has {
 		st.Subscription = &sub
 	}
+	if s.alerts != nil {
+		alert, hasAlert, err := s.alerts.GetPriceAlert(ctx, chatID)
+		if err != nil {
+			return Status{}, err
+		}
+		if hasAlert {
+			st.PriceAlert = &alert
+		}
+	}
 	return st, nil
+}
+
+// ---- price alerts --------------------------------------------------------
+
+// SetPriceAlert turns the per-chat "notify when price drops below threshold" flag on.
+// Threshold is inc-VAT p/kWh; use 0 for "only when negative".
+func (s *Service) SetPriceAlert(ctx context.Context, chatID int64, thresholdIncVAT float64) error {
+	return s.alerts.SetPriceAlert(ctx, storage.PriceAlert{
+		ChatID:          chatID,
+		ThresholdIncVAT: thresholdIncVAT,
+		Enabled:         true,
+	})
+}
+
+func (s *Service) DisablePriceAlert(ctx context.Context, chatID int64) error {
+	return s.alerts.DeletePriceAlert(ctx, chatID)
+}
+
+// ContiguousRun is one run of half-hours all strictly below some threshold.
+type ContiguousRun struct {
+	Start      time.Time
+	End        time.Time
+	Slots      int
+	MinIncVAT  float64
+	MeanIncVAT float64
+}
+
+// contiguousRunsBelow finds every run of half-hours whose inc-VAT rate is strictly
+// less than threshold. Rates must be sorted by ValidFrom ascending; a gap (next slot's
+// ValidFrom != previous ValidTo) breaks the run.
+func contiguousRunsBelow(rates []agile.HalfHour, threshold float64) []ContiguousRun {
+	var out []ContiguousRun
+	var cur *ContiguousRun
+	var sum float64
+	for i, r := range rates {
+		if r.UnitRateIncVAT < threshold {
+			cont := i > 0 && rates[i-1].ValidTo.Equal(r.ValidFrom) && cur != nil
+			if !cont {
+				if cur != nil {
+					cur.MeanIncVAT = sum / float64(cur.Slots)
+					out = append(out, *cur)
+				}
+				cur = &ContiguousRun{Start: r.ValidFrom, End: r.ValidTo, MinIncVAT: r.UnitRateIncVAT}
+				sum = 0
+			}
+			cur.End = r.ValidTo
+			cur.Slots++
+			sum += r.UnitRateIncVAT
+			if r.UnitRateIncVAT < cur.MinIncVAT {
+				cur.MinIncVAT = r.UnitRateIncVAT
+			}
+		} else if cur != nil {
+			cur.MeanIncVAT = sum / float64(cur.Slots)
+			out = append(out, *cur)
+			cur = nil
+			sum = 0
+		}
+	}
+	if cur != nil {
+		cur.MeanIncVAT = sum / float64(cur.Slots)
+		out = append(out, *cur)
+	}
+	return out
+}
+
+// PriceAlertDispatch is the return from DispatchPriceAlerts — one per message sent.
+type PriceAlertDispatch struct {
+	ChatID int64
+	Run    ContiguousRun
+}
+
+// leadStartWindow / leadEndWindow define the "send roughly 10 minutes before" window.
+// The dispatcher is expected to be invoked on a short cadence (~1m); any run starting
+// inside this band is notified. Picked wider than 10m so a brief outage doesn't cause
+// a miss.
+const (
+	leadWindowMin = 9 * time.Minute
+	leadWindowMax = 12 * time.Minute
+)
+
+// DispatchPriceAlerts scans every enabled alert. For each, it finds contiguous runs of
+// upcoming rates below the user's threshold; if any such run starts inside the lead
+// window ([now+9m, now+12m]) AND hasn't been dispatched before, it sends a message.
+func (s *Service) DispatchPriceAlerts(ctx context.Context) ([]PriceAlertDispatch, error) {
+	if s.alerts == nil {
+		return nil, nil
+	}
+	alerts, err := s.alerts.ListEnabledPriceAlerts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(alerts) == 0 {
+		return nil, nil
+	}
+
+	now := s.clock.Now().UTC()
+	lookAhead := now.Add(leadWindowMax + 30*time.Minute)
+	leadStart := now.Add(leadWindowMin)
+	leadEnd := now.Add(leadWindowMax)
+
+	var out []PriceAlertDispatch
+	for _, a := range alerts {
+		chat, ok, err := s.chats.GetChat(ctx, a.ChatID)
+		if err != nil {
+			s.log.Error("price alert: get chat", "chat_id", a.ChatID, "err", err)
+			continue
+		}
+		if !ok || chat.Region == "" {
+			continue
+		}
+		rates, err := s.rates.Rates(ctx, chat.Region, now, lookAhead)
+		if err != nil {
+			s.log.Error("price alert: rates", "chat_id", a.ChatID, "err", err)
+			continue
+		}
+		runs := contiguousRunsBelow(rates, a.ThresholdIncVAT)
+		for _, r := range runs {
+			if r.Start.Before(leadStart) || r.Start.After(leadEnd) {
+				continue
+			}
+			fresh, err := s.alerts.MarkPriceAlertDispatched(ctx, a.ChatID, r.Start)
+			if err != nil {
+				s.log.Error("price alert: mark dispatched", "err", err)
+				continue
+			}
+			if !fresh {
+				continue
+			}
+			tz, err := time.LoadLocation(chat.Timezone)
+			if err != nil {
+				tz = s.defaultTZ
+			}
+			if err := s.notifier.Notify(ctx, a.ChatID, FormatPriceAlert(r, a.ThresholdIncVAT, tz)); err != nil {
+				s.log.Error("price alert: notify", "chat_id", a.ChatID, "err", err)
+				continue
+			}
+			out = append(out, PriceAlertDispatch{ChatID: a.ChatID, Run: r})
+		}
+	}
+	return out, nil
+}
+
+// FormatPriceAlert composes the per-alert message.
+func FormatPriceAlert(r ContiguousRun, threshold float64, tz *time.Location) string {
+	tag := fmt.Sprintf("below %.2f p/kWh", threshold)
+	if threshold <= 0 {
+		tag = "negative!"
+	}
+	return fmt.Sprintf(
+		"⚡ Prices going %s in ~10 min: %s → %s (%d × 30m, min %.2f p/kWh, mean %.2f p/kWh inc VAT)",
+		tag,
+		r.Start.In(tz).Format("Mon 15:04"),
+		r.End.In(tz).Format("15:04"),
+		r.Slots, r.MinIncVAT, r.MeanIncVAT,
+	)
 }
 
 // ---- scheduled use-cases --------------------------------------------------

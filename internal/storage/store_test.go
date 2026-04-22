@@ -154,6 +154,48 @@ func TestRatesRoundTrip(t *testing.T) {
 	assert.Equal(t, start, got[0].ValidFrom)
 }
 
+func TestPriceAlertCRUD(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	require.NoError(t, s.UpsertChatRegion(ctx, 5, "C"))
+
+	_, ok, err := s.GetPriceAlert(ctx, 5)
+	require.NoError(t, err)
+	assert.False(t, ok)
+
+	require.NoError(t, s.SetPriceAlert(ctx, PriceAlert{ChatID: 5, ThresholdIncVAT: 0, Enabled: true}))
+	got, ok, err := s.GetPriceAlert(ctx, 5)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, 0.0, got.ThresholdIncVAT)
+	assert.True(t, got.Enabled)
+
+	// Update the threshold.
+	require.NoError(t, s.SetPriceAlert(ctx, PriceAlert{ChatID: 5, ThresholdIncVAT: -2, Enabled: true}))
+	got, _, _ = s.GetPriceAlert(ctx, 5)
+	assert.Equal(t, -2.0, got.ThresholdIncVAT)
+
+	en, err := s.ListEnabledPriceAlerts(ctx)
+	require.NoError(t, err)
+	assert.Len(t, en, 1)
+
+	require.NoError(t, s.DeletePriceAlert(ctx, 5))
+	_, ok, _ = s.GetPriceAlert(ctx, 5)
+	assert.False(t, ok)
+}
+
+func TestPriceAlertLog_Dedup(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	runStart := time.Date(2026, 4, 22, 13, 0, 0, 0, time.UTC)
+	first, err := s.MarkPriceAlertDispatched(ctx, 1, runStart)
+	require.NoError(t, err)
+	assert.True(t, first)
+	second, err := s.MarkPriceAlertDispatched(ctx, 1, runStart)
+	require.NoError(t, err)
+	assert.False(t, second)
+}
+
 func TestDispatchLog_Dedup(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()

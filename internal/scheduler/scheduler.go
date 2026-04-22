@@ -63,6 +63,21 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		return fmt.Errorf("register daily refresh: %w", err)
 	}
 
+	// Price-alert dispatcher: tick every minute so the lead-time window (9–12 min
+	// before a run starts) is reliably hit.
+	_, err = s.sched.NewJob(
+		gocron.DurationJob(time.Minute),
+		gocron.NewTask(func() {
+			if _, err := s.svc.DispatchPriceAlerts(ctx); err != nil {
+				s.log.Error("price alert dispatch", "err", err)
+			}
+		}),
+		gocron.WithName("price-alerts"),
+	)
+	if err != nil {
+		return fmt.Errorf("register price alerts: %w", err)
+	}
+
 	subs, err := s.subscriptions(ctx)
 	if err != nil {
 		return fmt.Errorf("load subs: %w", err)

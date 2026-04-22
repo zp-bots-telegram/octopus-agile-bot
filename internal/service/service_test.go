@@ -72,7 +72,7 @@ func buildService(t *testing.T, now time.Time) (*Service, *storage.Store, *fakeO
 	notifier := &fakeNotifier{}
 	tz, _ := time.LoadLocation("Europe/London")
 	svc := New(Deps{
-		Chats: st, Subs: st, Plans: st, Rates: st,
+		Chats: st, Subs: st, Plans: st, Rates: st, PriceAlerts: st,
 		Octopus: octo, Notifier: notifier,
 		Clock:         fixedClock{t: now},
 		DefaultTZ:     tz,
@@ -222,6 +222,59 @@ func TestDispatchSubscription_SendsMessage(t *testing.T) {
 
 	require.NoError(t, svc.DispatchSubscription(ctx, 3))
 	assert.Equal(t, 1, notifier.count())
+}
+
+func TestDispatchPriceAlerts_FiresInLeadWindow(t *testing.T) {
+	// now = 12:50 UTC; negative run starts at 13:00 UTC → 10 min lead.
+	now := time.Date(2026, 4, 22, 12, 50, 0, 0, time.UTC)
+	svc, st, _, notifier := buildService(t, now)
+	ctx := context.Background()
+
+	require.NoError(t, svc.SetRegion(ctx, 11, "C"))
+	require.NoError(t, svc.SetPriceAlert(ctx, 11, 0))
+
+	// Rates around 13:00–14:00: two half-hours below 0 (a 1h run).
+	rates := buildRates(time.Date(2026, 4, 22, 13, 0, 0, 0, time.UTC), []float64{-1, -2, 10, 20})
+	require.NoError(t, st.UpsertRates(ctx, "C", "E-1R-AGILE-C", rates))
+
+	ds, err := svc.DispatchPriceAlerts(ctx)
+	require.NoError(t, err)
+	require.Len(t, ds, 1)
+	assert.Equal(t, 1, notifier.count())
+	assert.Equal(t, 2, ds[0].Run.Slots)
+
+	// Second call at the same clock: dedup stops a resend.
+	_, err = svc.DispatchPriceAlerts(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, notifier.count())
+}
+
+func TestDispatchPriceAlerts_OutsideLeadWindowIsIgnored(t *testing.T) {
+	// now = 12:00 UTC; a negative run at 13:00 is 60 min away — too far.
+	now := time.Date(2026, 4, 22, 12, 0, 0, 0, time.UTC)
+	svc, st, _, notifier := buildService(t, now)
+	ctx := context.Background()
+
+	require.NoError(t, svc.SetRegion(ctx, 12, "C"))
+	require.NoError(t, svc.SetPriceAlert(ctx, 12, 0))
+
+	rates := buildRates(time.Date(2026, 4, 22, 13, 0, 0, 0, time.UTC), []float64{-1, -1})
+	require.NoError(t, st.UpsertRates(ctx, "C", "E-1R-AGILE-C", rates))
+
+	_, err := svc.DispatchPriceAlerts(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 0, notifier.count())
+}
+
+func TestContiguousRunsBelow_Basic(t *testing.T) {
+	start := time.Date(2026, 4, 22, 12, 0, 0, 0, time.UTC)
+	rates := buildRates(start, []float64{10, -1, -2, 5, -3, 10})
+	runs := contiguousRunsBelow(rates, 0)
+	require.Len(t, runs, 2)
+	assert.Equal(t, 2, runs[0].Slots)
+	assert.InDelta(t, -1.5, runs[0].MeanIncVAT, 1e-9)
+	assert.Equal(t, 1, runs[1].Slots)
+	assert.InDelta(t, -3.0, runs[1].MinIncVAT, 1e-9)
 }
 
 func TestHumanDuration(t *testing.T) {

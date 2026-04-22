@@ -33,6 +33,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("PUT /api/region", s.requireSession(s.handleSetRegion))
 	s.mux.HandleFunc("GET /api/cheapest", s.requireSession(s.handleCheapest))
 	s.mux.HandleFunc("GET /api/next", s.requireSession(s.handleNext))
+	s.mux.HandleFunc("GET /api/rates", s.requireSession(s.handleRates))
 	s.mux.HandleFunc("GET /api/status", s.requireSession(s.handleStatus))
 
 	s.mux.HandleFunc("GET /api/subscription", s.requireSession(s.handleGetSubscription))
@@ -42,6 +43,10 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/charge-plans", s.requireSession(s.handleListChargePlans))
 	s.mux.HandleFunc("POST /api/charge-plans", s.requireSession(s.handleCreateChargePlan))
 	s.mux.HandleFunc("DELETE /api/charge-plans/{id}", s.requireSession(s.handleCancelChargePlan))
+
+	s.mux.HandleFunc("GET /api/alert", s.requireSession(s.handleGetAlert))
+	s.mux.HandleFunc("PUT /api/alert", s.requireSession(s.handlePutAlert))
+	s.mux.HandleFunc("DELETE /api/alert", s.requireSession(s.handleDeleteAlert))
 }
 
 // ---- public --------------------------------------------------------------
@@ -213,6 +218,46 @@ func (s *Server) handleNext(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleRates returns every half-hour known for the chat's region inside [from, to].
+// Defaults: from=now, to=now+48h. Useful for charts/tables.
+func (s *Server) handleRates(w http.ResponseWriter, r *http.Request) {
+	chatID := claimsOf(r).TelegramUserID
+	now := time.Now().UTC()
+	from := now
+	to := now.Add(48 * time.Hour)
+
+	if v := r.URL.Query().Get("from"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid ?from= (want RFC3339)")
+			return
+		}
+		from = t.UTC()
+	}
+	if v := r.URL.Query().Get("to"); v != "" {
+		t, err := time.Parse(time.RFC3339, v)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid ?to= (want RFC3339)")
+			return
+		}
+		to = t.UTC()
+	}
+
+	rates, err := s.svc.Rates(r.Context(), chatID, from, to)
+	if err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	out := make([]slotJSON, 0, len(rates))
+	for _, hh := range rates {
+		out = append(out, slotJSON{
+			ValidFrom: hh.ValidFrom, ValidTo: hh.ValidTo,
+			IncVAT: hh.UnitRateIncVAT, ExcVAT: hh.UnitRateExcVAT,
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	chatID := claimsOf(r).TelegramUserID
 	st, err := s.svc.Status(r.Context(), chatID)
@@ -315,6 +360,49 @@ func (s *Server) handleCancelChargePlan(w http.ResponseWriter, r *http.Request) 
 	}
 	if !ok {
 		writeError(w, http.StatusNotFound, "plan not found")
+		return
+	}
+	writeJSON(w, http.StatusNoContent, nil)
+}
+
+// ---- price alerts --------------------------------------------------------
+
+type alertBody struct {
+	ThresholdIncVAT float64 `json:"threshold_inc_vat"`
+}
+
+func (s *Server) handleGetAlert(w http.ResponseWriter, r *http.Request) {
+	st, err := s.svc.Status(r.Context(), claimsOf(r).TelegramUserID)
+	if err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	if st.PriceAlert == nil {
+		writeJSON(w, http.StatusOK, nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"threshold_inc_vat": st.PriceAlert.ThresholdIncVAT,
+		"enabled":           st.PriceAlert.Enabled,
+	})
+}
+
+func (s *Server) handlePutAlert(w http.ResponseWriter, r *http.Request) {
+	var body alertBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if err := s.svc.SetPriceAlert(r.Context(), claimsOf(r).TelegramUserID, body.ThresholdIncVAT); err != nil {
+		writeServiceErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusNoContent, nil)
+}
+
+func (s *Server) handleDeleteAlert(w http.ResponseWriter, r *http.Request) {
+	if err := s.svc.DisablePriceAlert(r.Context(), claimsOf(r).TelegramUserID); err != nil {
+		writeServiceErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusNoContent, nil)

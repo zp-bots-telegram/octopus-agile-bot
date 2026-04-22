@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { api, ApiError, type RegionResp, type Window } from '$lib/api';
+	import { api, ApiError, type RegionResp, type Slot, type Window } from '$lib/api';
 	import { session } from '$lib/session.svelte';
 	import RateChart from '$lib/RateChart.svelte';
 
@@ -9,7 +9,7 @@
 	let cheapest = $state<Window | null>(null);
 	let cheapestError = $state<string | null>(null);
 
-	let chartWindow = $state<Window | null>(null);
+	let slots = $state<Slot[]>([]);
 	let chartError = $state<string | null>(null);
 
 	async function loadRegion() {
@@ -30,12 +30,10 @@
 		}
 	}
 
-	// Loads a 24h "cheapest 30m" window purely to get the full list of slots back for
-	// the chart. A future /api/rates?region=&from=&to= endpoint would be cleaner.
-	async function loadChart() {
+	async function loadRates() {
 		chartError = null;
 		try {
-			chartWindow = await api.cheapest('24h');
+			slots = await api.rates();
 		} catch (e) {
 			chartError = e instanceof ApiError ? e.message : String(e);
 		}
@@ -45,7 +43,7 @@
 		if (!session.me) return;
 		await loadRegion();
 		if (region) {
-			await Promise.all([loadCheapest(), loadChart()]);
+			await Promise.all([loadCheapest(), loadRates()]);
 		}
 	});
 </script>
@@ -106,13 +104,13 @@
 	</section>
 
 	<section class="rounded-lg border border-slate-200 bg-white p-6">
-		<h2 class="mb-4 text-lg font-semibold">Next 24h prices</h2>
+		<h2 class="mb-4 text-lg font-semibold">Published rates</h2>
 		{#if chartError}
 			<p class="text-sm text-red-600">{chartError}</p>
-		{:else if chartWindow}
-			<RateChart slots={chartWindow.slots} />
+		{:else if slots.length > 0}
+			<RateChart {slots} />
 		{:else}
-			<p class="text-sm text-slate-500">Loading…</p>
+			<p class="text-sm text-slate-500">No rates yet.</p>
 		{/if}
 	</section>
 {/if}

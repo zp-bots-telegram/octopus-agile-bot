@@ -8,6 +8,11 @@
 	let error = $state<string | null>(null);
 	let saved = $state(false);
 
+	let alertEnabled = $state(false);
+	let alertThreshold = $state(0);
+	let alertError = $state<string | null>(null);
+	let alertSaved = $state(false);
+
 	async function load() {
 		try {
 			current = await api.getRegion();
@@ -16,6 +21,41 @@
 			if (!(e instanceof ApiError && e.status === 428)) {
 				error = e instanceof ApiError ? e.message : String(e);
 			}
+		}
+		try {
+			const a = await api.getAlert();
+			if (a) {
+				alertEnabled = a.enabled;
+				alertThreshold = a.threshold_inc_vat;
+			} else {
+				alertEnabled = false;
+				alertThreshold = 0;
+			}
+		} catch (e) {
+			alertError = e instanceof ApiError ? e.message : String(e);
+		}
+	}
+
+	async function saveAlert() {
+		alertError = null;
+		alertSaved = false;
+		try {
+			await api.putAlert(alertThreshold);
+			alertEnabled = true;
+			alertSaved = true;
+		} catch (e) {
+			alertError = e instanceof ApiError ? e.message : String(e);
+		}
+	}
+
+	async function disableAlert() {
+		alertError = null;
+		try {
+			await api.deleteAlert();
+			alertEnabled = false;
+			alertSaved = true;
+		} catch (e) {
+			alertError = e instanceof ApiError ? e.message : String(e);
 		}
 	}
 
@@ -100,4 +140,54 @@
 			</button>
 		</div>
 	</details>
+</section>
+
+<section class="mt-6 rounded-lg border border-slate-200 bg-white p-4">
+	<h3 class="mb-2 font-semibold">Price alert</h3>
+	<p class="mb-3 text-sm text-slate-600">
+		I'll message you ~10 minutes before a half-hour slot drops below this threshold
+		(inc VAT, p/kWh). Use <strong>0</strong> to alert only on negative prices.
+	</p>
+
+	{#if alertError}
+		<p class="mb-2 text-sm text-red-600">{alertError}</p>
+	{/if}
+	{#if alertSaved}
+		<p class="mb-2 text-sm text-green-600">Saved.</p>
+	{/if}
+
+	<p class="mb-3 text-sm">
+		Currently:
+		{#if alertEnabled}
+			<strong>on</strong> — threshold {alertThreshold.toFixed(2)} p/kWh
+		{:else}
+			<strong>off</strong>
+		{/if}
+	</p>
+
+	<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto]">
+		<label class="text-sm">
+			<span class="text-slate-600">Threshold (p/kWh)</span>
+			<input
+				class="mt-1 w-full rounded border border-slate-300 px-2 py-1"
+				type="number"
+				step="0.1"
+				bind:value={alertThreshold}
+			/>
+		</label>
+		<button
+			class="self-end rounded bg-blue-600 px-4 py-1.5 text-white hover:bg-blue-700"
+			onclick={saveAlert}
+		>
+			{alertEnabled ? 'Update' : 'Enable'}
+		</button>
+		{#if alertEnabled}
+			<button
+				class="self-end rounded border border-red-300 px-4 py-1.5 text-red-700 hover:bg-red-50"
+				onclick={disableAlert}
+			>
+				Disable
+			</button>
+		{/if}
+	</div>
 </section>
