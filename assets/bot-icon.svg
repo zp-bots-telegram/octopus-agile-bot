@@ -1,56 +1,61 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- Rounded-square background, dark-to-blue diagonal gradient. -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%"  stop-color="#0b1220"/>
+      <stop offset="0%" stop-color="#0b1220"/>
       <stop offset="100%" stop-color="#1e3a8a"/>
     </linearGradient>
-
-    <!-- Gold→amber gradient for the bolt body. -->
     <linearGradient id="bolt" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%"  stop-color="#ffe066"/>
       <stop offset="60%" stop-color="#facc15"/>
       <stop offset="100%" stop-color="#f59e0b"/>
     </linearGradient>
-
-    <!-- Subtle glow behind the bolt. -->
     <radialGradient id="glow" cx="0.5" cy="0.5" r="0.6">
-      <stop offset="0%"  stop-color="#fde68a" stop-opacity="0.45"/>
-      <stop offset="70%" stop-color="#fde68a" stop-opacity="0"/>
+      <stop offset="0%"  stop-color="#fbcfe8" stop-opacity="0.45"/>
+      <stop offset="70%" stop-color="#fbcfe8" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
+  <!-- Rounded-square plate -->
   <rect x="0" y="0" width="512" height="512" rx="110" ry="110" fill="url(#bg)"/>
 
-  <!-- Clock ring: ticks the hour marks to suggest time-of-use pricing. -->
-  <g stroke="#cbd5e1" stroke-opacity="0.35" stroke-linecap="round">
-    <circle cx="256" cy="256" r="188" fill="none" stroke-width="4"/>
-    <g>
-      <!-- 12 hour ticks around the ring. -->
-      <line x1="256" y1="52"  x2="256" y2="80"  stroke-width="10"/>
-      <line x1="460" y1="256" x2="432" y2="256" stroke-width="10"/>
-      <line x1="256" y1="460" x2="256" y2="432" stroke-width="10"/>
-      <line x1="52"  y1="256" x2="80"  y2="256" stroke-width="10"/>
-      <line x1="358" y1="74"  x2="346" y2="94"  stroke-width="6"/>
-      <line x1="438" y1="154" x2="418" y2="166" stroke-width="6"/>
-      <line x1="438" y1="358" x2="418" y2="346" stroke-width="6"/>
-      <line x1="358" y1="438" x2="346" y2="418" stroke-width="6"/>
-      <line x1="154" y1="438" x2="166" y2="418" stroke-width="6"/>
-      <line x1="74"  y1="358" x2="94"  y2="346" stroke-width="6"/>
-      <line x1="74"  y1="154" x2="94"  y2="166" stroke-width="6"/>
-      <line x1="154" y1="74"  x2="166" y2="94"  stroke-width="6"/>
+  <!-- Soft pink halo behind the hero -->
+  <circle cx="256" cy="250" r="180" fill="url(#glow)"/>
+
+  <!-- Octopus: the hero. Fills most of the ring, no occlusion. -->
+  <image href="octopus-logo.png" x="96" y="90" width="320" height="320"/>
+
+  <!-- Clock ring: radius 230, ticks on the 12 hour marks, sits in front of the
+       octopus but as a thin outline so it reads as a frame, not a cage. -->
+  <g stroke="#cbd5e1" stroke-opacity="0.55" stroke-linecap="round" fill="none">
+    <circle cx="256" cy="256" r="230" stroke-width="3"/>
+    <g stroke-width="9">
+      <line x1="256" y1="28"  x2="256" y2="52"/>
+      <line x1="484" y1="256" x2="460" y2="256"/>
+      <line x1="256" y1="484" x2="256" y2="460"/>
+      <line x1="28"  y1="256" x2="52"  y2="256"/>
+    </g>
+    <g stroke-width="5">
+      <line x1="370" y1="58"  x2="360" y2="79"/>
+      <line x1="454" y1="142" x2="433" y2="152"/>
+      <line x1="454" y1="370" x2="433" y2="360"/>
+      <line x1="370" y1="454" x2="360" y2="433"/>
+      <line x1="142" y1="454" x2="152" y2="433"/>
+      <line x1="58"  y1="370" x2="79"  y2="360"/>
+      <line x1="58"  y1="142" x2="79"  y2="152"/>
+      <line x1="142" y1="58"  x2="152" y2="79"/>
     </g>
   </g>
 
-  <!-- Glow halo. -->
-  <circle cx="256" cy="256" r="170" fill="url(#glow)"/>
-
-  <!-- Lightning bolt: classic jagged shape, centered. -->
-  <path
-    d="M294 88 L170 280 L236 280 L210 424 L348 216 L278 216 Z"
-    fill="url(#bolt)"
-    stroke="#7c2d12"
-    stroke-opacity="0.35"
-    stroke-width="6"
-    stroke-linejoin="round"/>
+  <!-- Electricity-bolt badge tucked in the bottom-right corner so it accents
+       rather than occludes the octopus. Small disc of the plate colour so the
+       bolt reads against the gradient. -->
+  <g transform="translate(400 400)">
+    <circle r="60" fill="#0b1220" stroke="#ffe066" stroke-opacity="0.35" stroke-width="3"/>
+    <!-- Classic bolt, scaled to fit the disc. -->
+    <path
+      d="M 6 -40 L -22 6 L -2 6 L -14 42 L 20 -4 L 0 -4 Z"
+      fill="url(#bolt)"
+      stroke="#7c2d12" stroke-opacity="0.35" stroke-width="3"
+      stroke-linejoin="round"/>
+  </g>
 </svg>
