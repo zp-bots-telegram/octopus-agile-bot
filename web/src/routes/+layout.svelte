@@ -3,13 +3,45 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { Button, ThemeSwitcher, TooltipProvider, themeManager } from '@immich/ui';
+	import {
+		Button,
+		ThemePreference,
+		ThemeSwitcher,
+		TooltipProvider,
+		themeManager
+	} from '@immich/ui';
 	import { session, refreshSession, logout } from '$lib/session.svelte';
 
 	let { children } = $props();
 
+	// Telegram Mini App runtime shape — only the bits we use.
+	type TelegramWebApp = {
+		colorScheme?: 'light' | 'dark';
+		onEvent?: (type: string, cb: () => void) => void;
+	};
+
+	function telegramWebApp(): TelegramWebApp | undefined {
+		return (window as unknown as { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
+	}
+
+	// Inside the Mini App, mirror Telegram's colour scheme and follow its themeChanged
+	// event. Outside Telegram this is a no-op; the user's own preference (persisted in
+	// localStorage by themeManager) stays in charge.
+	function bindTelegramTheme() {
+		const tg = telegramWebApp();
+		if (!tg) return;
+		const apply = () => {
+			themeManager.setPreference(
+				tg.colorScheme === 'dark' ? ThemePreference.Dark : ThemePreference.Light
+			);
+		};
+		apply();
+		tg.onEvent?.('themeChanged', apply);
+	}
+
 	onMount(async () => {
 		themeManager.setPreference(themeManager.preference);
+		bindTelegramTheme();
 
 		await refreshSession();
 		const publicPaths = new Set(['/login']);
