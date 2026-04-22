@@ -10,8 +10,23 @@ help:  ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "Targets:\n"} /^[a-zA-Z0-9_-]+:.*##/ {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 .PHONY: build
-build:  ## Compile the bot binary to ./$(BINARY)
+build: build-web  ## Compile the bot binary to ./$(BINARY) (builds web first)
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/bot
+
+.PHONY: build-go
+build-go:  ## Compile the Go binary without rebuilding the frontend
+	CGO_ENABLED=0 go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/bot
+
+.PHONY: build-web
+build-web:  ## Install deps and build the SvelteKit frontend into internal/httpapi/webassets
+	cd web && npm ci && npm run build
+	rm -rf internal/httpapi/webassets && mkdir -p internal/httpapi/webassets
+	cp -r web/build/. internal/httpapi/webassets/
+	touch internal/httpapi/webassets/.gitkeep
+
+.PHONY: dev-web
+dev-web:  ## Run the SvelteKit dev server with proxy to :8080 (requires the Go bot running separately)
+	cd web && npm run dev
 
 .PHONY: test
 test: test-unit test-integration  ## Run all tests
@@ -57,3 +72,5 @@ docker:  ## Build the docker image as octopus-agile-bot:local
 .PHONY: clean
 clean:  ## Remove build artifacts
 	rm -f $(BINARY) coverage.txt
+	rm -rf web/build web/.svelte-kit
+	find internal/httpapi/webassets -mindepth 1 ! -name .gitkeep -delete 2>/dev/null || true

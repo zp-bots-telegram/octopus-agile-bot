@@ -14,3 +14,8 @@ data/
 *.db
 *.db-*
 coverage.txt
+# Frontend build artefacts + node deps (the Docker build recomputes them)
+web/node_modules
+web/build
+web/.svelte-kit
+internal/httpapi/webassets

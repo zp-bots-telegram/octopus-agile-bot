@@ -15,6 +15,13 @@ import (
 )
 
 func (s *Server) routes() {
+	// Static SPA. Register at "/" so unknown paths fall through to index.html.
+	if static, err := StaticHandler(); err == nil {
+		s.mux.Handle("/", static)
+	} else {
+		s.log.Warn("no static web assets embedded", "err", err)
+	}
+
 	// Public.
 	s.mux.HandleFunc("GET /api/health", s.handleHealth)
 	s.mux.HandleFunc("POST /api/auth/telegram/callback", s.handleTelegramLogin)

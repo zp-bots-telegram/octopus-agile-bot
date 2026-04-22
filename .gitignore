@@ -26,3 +26,14 @@ config.local.*
 .vscode/
 *.swp
 .DS_Store
+
+# Frontend
+/web/node_modules/
+/web/build/
+/web/.svelte-kit/
+/web/.vite/
+/web/package-lock.json.bak
+
+# Built frontend is embedded into the Go binary at build time but not committed.
+internal/httpapi/webassets/*
+!internal/httpapi/webassets/.gitkeep

@@ -1,3 +1,10 @@
+FROM node:24-alpine AS web
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ ./
+RUN npm run build
+
 FROM golang:1.26-alpine AS build
 WORKDIR /src
 
@@ -6,6 +13,7 @@ RUN go mod download
 
 COPY cmd/ cmd/
 COPY internal/ internal/
+COPY --from=web /web/build/ /src/internal/httpapi/webassets/
 
 ARG VERSION=dev
 ENV CGO_ENABLED=0
