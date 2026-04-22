@@ -155,7 +155,7 @@
 						<input
 							class="mt-1 rounded border border-light-300 bg-transparent px-2 py-1"
 							bind:value={planBy}
-							placeholder="07:00"
+							placeholder="07:00 or 7am"
 						/>
 					</label>
 					<Button onclick={planNow}>Plan</Button>

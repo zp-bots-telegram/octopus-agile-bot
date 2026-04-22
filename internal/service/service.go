@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -289,7 +291,7 @@ func (s *Service) SuggestCharge(ctx context.Context, chatID int64, duration time
 	now := s.clock.Now().UTC()
 	to := now.Add(48 * time.Hour)
 	if strings.TrimSpace(byLocal) != "" {
-		hm, err := parseHHMM(byLocal)
+		hm, err := parseUserTime(byLocal)
 		if err != nil {
 			return ChargeSuggestion{}, err
 		}
@@ -354,14 +356,16 @@ func (s *Service) NextBelowThreshold(ctx context.Context, chatID int64, threshol
 }
 
 // SetSubscription creates or updates the chat's daily "cheapest window over next 24h"
-// notification.
+// notification. `notifyAtLocal` accepts flexible user input (07:00, 7am, 7:30 pm…)
+// and is normalised to canonical HH:MM before storing.
 func (s *Service) SetSubscription(ctx context.Context, chatID int64, duration time.Duration, notifyAtLocal string) error {
-	if _, err := parseHHMM(notifyAtLocal); err != nil {
+	t, err := parseUserTime(notifyAtLocal)
+	if err != nil {
 		return err
 	}
 	return s.subs.SetSubscription(ctx, storage.Subscription{
 		ChatID: chatID, Duration: duration,
-		NotifyAtLocal: notifyAtLocal, Enabled: true,
+		NotifyAtLocal: t.Format("15:04"), Enabled: true,
 	})
 }
 
@@ -375,17 +379,22 @@ func (s *Service) EnabledSubscriptions(ctx context.Context) ([]storage.Subscript
 	return s.subs.ListEnabledSubscriptions(ctx)
 }
 
-// CreateChargePlan registers a recurring daily charging plan for the chat.
+// CreateChargePlan registers a recurring daily charging plan for the chat. Times
+// accept flexible input (7am, 22:00, 7:30 pm…) and are normalised to HH:MM.
 func (s *Service) CreateChargePlan(ctx context.Context, chatID int64, duration time.Duration, startLocal, endLocal string) (storage.ChargePlan, error) {
-	if _, err := parseHHMM(startLocal); err != nil {
+	start, err := parseUserTime(startLocal)
+	if err != nil {
 		return storage.ChargePlan{}, err
 	}
-	if _, err := parseHHMM(endLocal); err != nil {
+	end, err := parseUserTime(endLocal)
+	if err != nil {
 		return storage.ChargePlan{}, err
 	}
 	p := storage.ChargePlan{
 		ChatID: chatID, Duration: duration,
-		WindowStartLocal: startLocal, WindowEndLocal: endLocal, Enabled: true,
+		WindowStartLocal: start.Format("15:04"),
+		WindowEndLocal:   end.Format("15:04"),
+		Enabled:          true,
 	}
 	id, err := s.plans.CreateChargePlan(ctx, p)
 	if err != nil {
@@ -859,12 +868,58 @@ func (s *Service) DispatchSubscription(ctx context.Context, chatID int64) error 
 
 // ---- helpers --------------------------------------------------------------
 
+// parseHHMM parses canonical 24-hour "HH:MM" values (as stored on disk after
+// normalisation). Stricter than parseUserTime so storage corruption is visible.
 func parseHHMM(s string) (time.Time, error) {
 	t, err := time.Parse("15:04", strings.TrimSpace(s))
 	if err != nil {
 		return time.Time{}, fmt.Errorf("%w: %q", ErrBadTime, s)
 	}
 	return t, nil
+}
+
+// userTimeRe matches flexible human time input: "07:00", "7:00", "7", "7am",
+// "7 pm", "7:30am", "7:30 pm", "19:30". Matches am/pm case-insensitively.
+var userTimeRe = regexp.MustCompile(`(?i)^\s*([0-9]{1,2})(?::([0-9]{2}))?\s*(am|pm)?\s*$`)
+
+// parseUserTime accepts the flexible forms above and returns the time-of-day
+// (date fields unset). Callers should .Format("15:04") before persisting so the
+// storage layer always sees canonical values.
+func parseUserTime(s string) (time.Time, error) {
+	m := userTimeRe.FindStringSubmatch(s)
+	if m == nil {
+		return time.Time{}, fmt.Errorf("%w: %q", ErrBadTime, s)
+	}
+	hour, _ := strconv.Atoi(m[1])
+	minute := 0
+	if m[2] != "" {
+		minute, _ = strconv.Atoi(m[2])
+	}
+	ap := strings.ToLower(m[3])
+	switch ap {
+	case "am":
+		if hour < 1 || hour > 12 {
+			return time.Time{}, fmt.Errorf("%w: hour out of range in %q", ErrBadTime, s)
+		}
+		if hour == 12 {
+			hour = 0
+		}
+	case "pm":
+		if hour < 1 || hour > 12 {
+			return time.Time{}, fmt.Errorf("%w: hour out of range in %q", ErrBadTime, s)
+		}
+		if hour < 12 {
+			hour += 12
+		}
+	default:
+		if hour > 23 {
+			return time.Time{}, fmt.Errorf("%w: hour out of range in %q", ErrBadTime, s)
+		}
+	}
+	if minute > 59 {
+		return time.Time{}, fmt.Errorf("%w: minutes out of range in %q", ErrBadTime, s)
+	}
+	return time.Date(0, 1, 1, hour, minute, 0, 0, time.UTC), nil
 }
 
 // FormatChargeDispatch composes the overnight-charging message text.

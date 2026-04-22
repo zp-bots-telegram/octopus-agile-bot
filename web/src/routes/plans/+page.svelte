@@ -78,7 +78,7 @@
 					<input
 						class="mt-1 w-full rounded border border-light-300 bg-transparent px-2 py-1"
 						bind:value={start}
-						placeholder="22:00"
+						placeholder="22:00 or 10pm"
 					/>
 				</label>
 				<label class="text-sm">
@@ -86,7 +86,7 @@
 					<input
 						class="mt-1 w-full rounded border border-light-300 bg-transparent px-2 py-1"
 						bind:value={end}
-						placeholder="07:00"
+						placeholder="07:00 or 7am"
 					/>
 				</label>
 				<Button onclick={create}>Add</Button>

@@ -147,6 +147,66 @@ func TestSetSubscription_ValidatesTime(t *testing.T) {
 	assert.ErrorIs(t, err, ErrBadTime)
 }
 
+func TestParseUserTime(t *testing.T) {
+	cases := []struct {
+		in       string
+		wantH    int
+		wantM    int
+		wantErr  bool
+	}{
+		{"07:00", 7, 0, false},
+		{"7:00", 7, 0, false},
+		{"07:30", 7, 30, false},
+		{"7am", 7, 0, false},
+		{"7 AM", 7, 0, false},
+		{"12am", 0, 0, false},
+		{"12pm", 12, 0, false},
+		{"7pm", 19, 0, false},
+		{"7:30pm", 19, 30, false},
+		{"7:30 pm", 19, 30, false},
+		{"15:30", 15, 30, false},
+		{"23:59", 23, 59, false},
+		{"0", 0, 0, false},
+		{"25:00", 0, 0, true},
+		{"13pm", 0, 0, true},
+		{"7:60", 0, 0, true},
+		{"garbage", 0, 0, true},
+	}
+	for _, c := range cases {
+		got, err := parseUserTime(c.in)
+		if c.wantErr {
+			assert.Error(t, err, "in=%q", c.in)
+			continue
+		}
+		assert.NoError(t, err, "in=%q", c.in)
+		assert.Equal(t, c.wantH, got.Hour(), "in=%q hour", c.in)
+		assert.Equal(t, c.wantM, got.Minute(), "in=%q min", c.in)
+	}
+}
+
+func TestSetSubscription_NormalisesInput(t *testing.T) {
+	svc, st, _, _ := buildService(t, time.Now())
+	ctx := context.Background()
+	require.NoError(t, svc.SetRegion(ctx, 99, "C"))
+	require.NoError(t, svc.SetSubscription(ctx, 99, 3*time.Hour, "7am"))
+
+	sub, ok, err := st.GetSubscription(ctx, 99)
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, "07:00", sub.NotifyAtLocal)
+}
+
+func TestCreateChargePlan_NormalisesInput(t *testing.T) {
+	svc, _, _, _ := buildService(t, time.Now())
+	ctx := context.Background()
+	require.NoError(t, svc.SetRegion(ctx, 100, "C"))
+
+	p, err := svc.CreateChargePlan(ctx, 100, 4*time.Hour, "10 pm", "7am")
+	require.NoError(t, err)
+	assert.Equal(t, "22:00", p.WindowStartLocal)
+	assert.Equal(t, "07:00", p.WindowEndLocal)
+}
+
 func TestStatus(t *testing.T) {
 	svc, _, _, _ := buildService(t, time.Now())
 	ctx := context.Background()
