@@ -21,19 +21,20 @@ import (
 type AllowedFunc func(chatID int64) bool
 
 type Handlers struct {
-	svc     *service.Service
-	allowed AllowedFunc
-	log     *slog.Logger
+	svc        *service.Service
+	allowed    AllowedFunc
+	log        *slog.Logger
+	webBaseURL string
 }
 
-func NewHandlers(svc *service.Service, allowed AllowedFunc, log *slog.Logger) *Handlers {
+func NewHandlers(svc *service.Service, allowed AllowedFunc, log *slog.Logger, webBaseURL string) *Handlers {
 	if allowed == nil {
 		allowed = func(int64) bool { return true }
 	}
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Handlers{svc: svc, allowed: allowed, log: log}
+	return &Handlers{svc: svc, allowed: allowed, log: log, webBaseURL: strings.TrimRight(webBaseURL, "/")}
 }
 
 // commandSpec is the single source of truth for every v1 command: the pattern the
@@ -56,6 +57,7 @@ func (h *Handlers) specs() []commandSpec {
 		{"unsubscribe", "Stop daily cheapest-window push", h.Unsubscribe},
 		{"charge", "Recurring EV charge plan, e.g. /charge 4h 22:00-07:00", h.Charge},
 		{"plan", "One-shot charge plan, e.g. /plan 4h by 07:00", h.Plan},
+		{"web", "Open the web UI", h.Web},
 		{"charges", "List active charge plans", h.Charges},
 		{"cancelcharge", "Cancel a charge plan by id", h.CancelCharge},
 		{"alerts", "Alert me when prices go low, e.g. /alerts 0 or /alerts off", h.Alerts},
@@ -119,16 +121,61 @@ func (h *Handlers) Start(ctx context.Context, b *bot.Bot, u *models.Update) {
 	if !h.gate(ctx, b, u) {
 		return
 	}
-	h.reply(ctx, b, u,
-		"Hi! I help you time high-load appliances (EV charging, dishwasher, etc.) against Octopus Agile's half-hourly prices.\n\n"+
-			"Start by telling me your DNO region with either:\n"+
-			"  • /region <postcode>  — e.g. /region SW1A 1AA (I'll look up the letter)\n"+
-			"  • /region <letter>     — e.g. /region C\n\n"+
-			"Then try:\n"+
-			"  /cheapest 3h — best 3-hour window in the next 24–48h\n"+
-			"  /charge 4h 22:00-07:00 — daily EV charge plan, I'll DM you when to plug in\n"+
-			"  /next 15 — the next half-hour under 15 p/kWh\n\n"+
-			"Full list with /help.")
+	greeting := "Hi! I help you time high-load appliances (EV charging, dishwasher, etc.) against Octopus Agile's half-hourly prices.\n\n" +
+		"Start by telling me your DNO region with either:\n" +
+		"  • /region <postcode>  — e.g. /region SW1A 1AA (I'll look up the letter)\n" +
+		"  • /region <letter>     — e.g. /region C\n\n" +
+		"Then try:\n" +
+		"  /cheapest 3h — best 3-hour window in the next 24–48h\n" +
+		"  /plan 4h by 07:00 — one-shot planner: when should I start charging?\n" +
+		"  /charge 4h 22:00-07:00 — daily EV charge plan, I'll DM you when to plug in\n" +
+		"  /next 15 — the next half-hour under 15 p/kWh\n\n"
+	if h.webBaseURL != "" {
+		greeting += "Or use the web UI: " + h.webBaseURL + "\n\n"
+	}
+	greeting += "Full list with /help."
+	h.reply(ctx, b, u, greeting)
+}
+
+// Web replies with a clickable link to the web UI plus an inline keyboard button
+// that opens the URL as a Telegram Mini App (stays inside Telegram). Disabled with a
+// helpful note if the operator hasn't configured WEB_BASE_URL.
+func (h *Handlers) Web(ctx context.Context, b *bot.Bot, u *models.Update) {
+	if !h.gate(ctx, b, u) {
+		return
+	}
+	if h.webBaseURL == "" {
+		h.reply(ctx, b, u, "The web UI isn't configured on this bot (no WEB_BASE_URL set).")
+		return
+	}
+	if _, err := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: u.Message.Chat.ID,
+		Text:   "Web UI: " + h.webBaseURL,
+		ReplyMarkup: &models.InlineKeyboardMarkup{
+			InlineKeyboard: [][]models.InlineKeyboardButton{{
+				{Text: "Open in Telegram", WebApp: &models.WebAppInfo{URL: h.webBaseURL}},
+				{Text: "Open in browser", URL: h.webBaseURL},
+			}},
+		},
+	}); err != nil {
+		h.log.Error("send /web reply", "err", err)
+	}
+}
+
+// PublishMenuButton sets the bot-wide default menu button to a Mini App that opens
+// the web UI. No-op if WEB_BASE_URL isn't configured.
+func (h *Handlers) PublishMenuButton(ctx context.Context, b *bot.Bot) error {
+	if h.webBaseURL == "" {
+		return nil
+	}
+	_, err := b.SetChatMenuButton(ctx, &bot.SetChatMenuButtonParams{
+		MenuButton: &models.MenuButtonWebApp{
+			Type:   models.MenuButtonTypeWebApp,
+			Text:   "Open app",
+			WebApp: models.WebAppInfo{URL: h.webBaseURL},
+		},
+	})
+	return err
 }
 
 func (h *Handlers) Help(ctx context.Context, b *bot.Bot, u *models.Update) {
@@ -146,6 +193,7 @@ func (h *Handlers) Help(ctx context.Context, b *bot.Bot, u *models.Update) {
 /charges — list active charge plans
 /cancelcharge <id>
 /alerts <threshold|off> — notify ~10 min before prices go below <threshold> p/kWh (default 0 = negative only)
+/web — open the web UI
 /status — show your settings`)
 }
 

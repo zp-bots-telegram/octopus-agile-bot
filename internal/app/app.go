@@ -75,7 +75,7 @@ func New(ctx context.Context, cfg *config.Loaded) (*App, error) {
 	})
 
 	allow := cfg.Config.IsChatAllowed
-	handlers := telegram.NewHandlers(svc, allow, log)
+	handlers := telegram.NewHandlers(svc, allow, log, cfg.WebBaseURL)
 	handlers.Register(b)
 
 	sch, err := scheduler.New(svc, cfg.Location, log)
@@ -124,6 +124,12 @@ func (a *App) Run(ctx context.Context) error {
 		a.log.Warn("publish commands failed — menu may be stale", "err", err)
 	} else {
 		a.log.Info("telegram command menu published")
+	}
+
+	if err := a.handlers.PublishMenuButton(ctx, a.bot); err != nil {
+		a.log.Warn("publish menu button failed", "err", err)
+	} else if a.cfg.WebBaseURL != "" {
+		a.log.Info("telegram menu button published", "url", a.cfg.WebBaseURL)
 	}
 
 	if err := a.sched.Start(ctx); err != nil {

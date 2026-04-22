@@ -140,7 +140,7 @@ func buildHarness(t *testing.T) (*bot.Bot, *tgRecorder, *storage.Store, *Handler
 		DefaultRegion: "C",
 		Clock:         fixedClock{t: time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC)},
 	})
-	h := NewHandlers(svc, nil, nil)
+	h := NewHandlers(svc, nil, nil, "")
 	h.Register(b)
 	return b, rec, st, h
 }
@@ -248,7 +248,7 @@ func TestAllowlistDeniesStranger(t *testing.T) {
 		Octopus: fakeOctopus{}, Notifier: NewNotifier(b),
 		DefaultTZ: tz, DefaultRegion: "C",
 	})
-	h := NewHandlers(svc, func(chatID int64) bool { return chatID == 42 }, nil)
+	h := NewHandlers(svc, func(chatID int64) bool { return chatID == 42 }, nil, "")
 	h.Register(b)
 
 	fireText(b, 99, "/help")
