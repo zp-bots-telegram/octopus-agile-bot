@@ -18,12 +18,24 @@
 		return [xs, ys];
 	}
 
+	// Read a CSS token off <html>. The Immich palette's light/dark tokens already
+	// auto-invert when the `dark` class is applied, so we don't need a mode branch.
+	function token(name: string): string {
+		return (
+			getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#0f172a'
+		);
+	}
+
 	function render() {
 		if (!container) return;
 		if (plot) {
 			plot.destroy();
 			plot = null;
 		}
+
+		const axisStroke = token('--color-dark'); // body text colour — dark in light mode, light in dark mode
+		const gridStroke = token('--color-light-300'); // subtle grid — also auto-inverts
+
 		const opts: uPlot.Options = {
 			width: container.clientWidth,
 			height: 280,
@@ -33,12 +45,15 @@
 				{
 					label: 'p/kWh inc VAT',
 					stroke: '#2563eb',
-					fill: 'rgba(37, 99, 235, 0.1)',
+					fill: 'rgba(37, 99, 235, 0.15)',
 					width: 2
 				}
 			],
 			axes: [
 				{
+					stroke: axisStroke,
+					grid: { stroke: gridStroke, width: 1 },
+					ticks: { stroke: gridStroke, width: 1 },
 					values: (_, ticks) =>
 						ticks.map((t) =>
 							new Date(t * 1000).toLocaleTimeString([], {
@@ -47,19 +62,37 @@
 							})
 						)
 				},
-				{ label: 'p/kWh' }
+				{
+					label: 'p/kWh',
+					stroke: axisStroke,
+					grid: { stroke: gridStroke, width: 1 },
+					ticks: { stroke: gridStroke, width: 1 }
+				}
 			]
 		};
 		plot = new uPlot(opts, buildData(slots), container);
 	}
 
+	let ro: ResizeObserver | null = null;
+	let mo: MutationObserver | null = null;
+
 	onMount(() => {
 		render();
-		const ro = new ResizeObserver(() => {
+
+		ro = new ResizeObserver(() => {
 			if (plot && container) plot.setSize({ width: container.clientWidth, height: 280 });
 		});
 		ro.observe(container);
-		onDestroy(() => ro.disconnect());
+
+		// Re-render on theme toggle (html gains/loses the `dark` class).
+		mo = new MutationObserver(() => render());
+		mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+	});
+
+	onDestroy(() => {
+		ro?.disconnect();
+		mo?.disconnect();
+		plot?.destroy();
 	});
 
 	$effect(() => {
@@ -67,4 +100,4 @@
 	});
 </script>
 
-<div bind:this={container} style="width: 100%; height: 280px;"></div>
+<div bind:this={container} style="width: 100%;"></div>
