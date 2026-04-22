@@ -1,15 +1,21 @@
 @import "@immich/ui/theme/default.css";
 @import "uplot/dist/uPlot.min.css";
 
+/* Tailwind v4 scans the project's own source files by default but not packages in
+   node_modules. @immich/ui's compiled components emit utility classes (bg-primary-*,
+   bg-dark-*, text-dark, dark:bg-dark-100, h-8 w-8, etc.); without @source those
+   classes never land in the generated CSS and every Immich Button/Card renders
+   unstyled. Pull them in explicitly. */
+@source "../node_modules/@immich/ui/dist/**/*.{js,svelte}";
+
 html, body { height: 100%; }
 
+/* The Immich tokens (--color-light-*, --color-dark-*, --color-primary-*, etc.) already
+   swap appropriately between light and dark — `--color-light-50` renders as a light
+   page background in light mode and as a dark page background in dark mode. No
+   manual dark-mode override needed here. */
 body {
 	background: var(--color-light-50);
 	color: var(--color-dark);
 	font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-}
-
-:where(.dark) body {
-	background: var(--color-dark-50);
-	color: var(--color-light);
 }
