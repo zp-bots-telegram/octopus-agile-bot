@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { Button, Link, ThemeSwitcher, themeManager } from '@immich/ui';
+	import { Button, Link, ThemeSwitcher, TooltipProvider, themeManager } from '@immich/ui';
 	import { session, refreshSession, logout } from '$lib/session.svelte';
 
 	let { children } = $props();
@@ -19,6 +19,7 @@
 	});
 </script>
 
+<TooltipProvider>
 <div class="mx-auto max-w-3xl p-4 sm:p-6">
 	<header class="mb-6 flex flex-wrap items-center justify-between gap-3">
 		<a href="/" class="text-lg font-semibold">⚡ Octopus Agile</a>
@@ -55,3 +56,4 @@
 		{/if}
 	</main>
 </div>
+</TooltipProvider>
