@@ -1,20 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import {
-		Alert,
-		Button,
-		Card,
-		CardBody,
-		CardHeader,
-		CardTitle,
-		Field,
-		HStack,
-		Heading,
-		Input,
-		NumberInput,
-		Stack,
-		Text
-	} from '@immich/ui';
+	import { Alert, Button, Card, CardBody, CardHeader, CardTitle } from '@immich/ui';
 	import { api, ApiError, type ChargePlan } from '$lib/api';
 
 	let plans = $state<ChargePlan[]>([]);
@@ -63,9 +49,9 @@
 	onMount(load);
 </script>
 
-<Stack gap={4}>
-	<Heading tag="h2" size="medium">Charge plans</Heading>
+<h2 class="mb-4 text-xl font-semibold">Charge plans</h2>
 
+<div class="space-y-4">
 	{#if error}
 		<Alert color="danger">{error}</Alert>
 	{/if}
@@ -75,49 +61,64 @@
 			<CardTitle>Add a plan</CardTitle>
 		</CardHeader>
 		<CardBody>
-			<Stack gap={3}>
-				<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] items-end">
-					<Field label="Duration (minutes)">
-						<NumberInput bind:value={durationMinutes} min={30} step={30} />
-					</Field>
-					<Field label="Earliest start (HH:MM)">
-						<Input bind:value={start} placeholder="22:00" />
-					</Field>
-					<Field label="Latest end (HH:MM)">
-						<Input bind:value={end} placeholder="07:00" />
-					</Field>
-					<Button onclick={create}>Add</Button>
-				</div>
-				<Text color="muted" size="tiny">
-					End earlier than start means overnight (e.g. 22:00–07:00 = 9h window crossing midnight).
-				</Text>
-			</Stack>
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] items-end">
+				<label class="text-sm">
+					<span class="text-dark/80 dark:text-light/80">Duration (minutes)</span>
+					<input
+						class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+						type="number"
+						min="30"
+						step="30"
+						bind:value={durationMinutes}
+					/>
+				</label>
+				<label class="text-sm">
+					<span class="text-dark/80 dark:text-light/80">Earliest start (HH:MM)</span>
+					<input
+						class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+						bind:value={start}
+						placeholder="22:00"
+					/>
+				</label>
+				<label class="text-sm">
+					<span class="text-dark/80 dark:text-light/80">Latest end (HH:MM)</span>
+					<input
+						class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+						bind:value={end}
+						placeholder="07:00"
+					/>
+				</label>
+				<Button onclick={create}>Add</Button>
+			</div>
+			<p class="mt-2 text-xs text-dark/60 dark:text-light/60">
+				End earlier than start means overnight (e.g. 22:00–07:00 = 9h window crossing midnight).
+			</p>
 		</CardBody>
 	</Card>
 
 	{#if plans.length === 0}
-		<Text color="muted">No charge plans yet.</Text>
+		<p class="text-dark/80 dark:text-light/80">No charge plans yet.</p>
 	{:else}
-		<Stack gap={2}>
+		<div class="space-y-2">
 			{#each plans as p}
 				<Card>
 					<CardBody>
-						<HStack class="justify-between">
-							<Stack gap={1}>
-								<Text fontWeight="medium">
+						<div class="flex items-center justify-between">
+							<div>
+								<p class="font-medium">
 									#{p.ID} — {humanDuration(p.Duration)} between {p.WindowStartLocal}–{p.WindowEndLocal}
-								</Text>
-								<Text color="muted" size="small">
+								</p>
+								<p class="text-sm text-dark/60 dark:text-light/60">
 									{p.Enabled ? 'Active' : 'Paused'}
-								</Text>
-							</Stack>
+								</p>
+							</div>
 							<Button size="small" color="danger" variant="outline" onclick={() => cancel(p.ID)}>
 								Cancel
 							</Button>
-						</HStack>
+						</div>
 					</CardBody>
 				</Card>
 			{/each}
-		</Stack>
+		</div>
 	{/if}
-</Stack>
+</div>

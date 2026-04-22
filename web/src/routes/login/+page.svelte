@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { Alert, Heading, Link, Stack, Text } from '@immich/ui';
 	import { api, ApiError, type TelegramLoginPayload } from '$lib/api';
 	import { session, refreshSession } from '$lib/session.svelte';
 
@@ -34,21 +33,24 @@
 	});
 </script>
 
-<section class="mt-12">
-	<Stack direction="column" align="center" gap={6}>
-		<Heading size="large" tag="h1">Octopus Agile Bot</Heading>
-		<Text color="muted" class="text-center">
-			Find the cheapest times to use lots of electricity. Log in with the same Telegram account
-			you use to chat with the bot.
-		</Text>
+<section class="mt-12 text-center">
+	<h1 class="mb-2 text-3xl font-bold">Octopus Agile Bot</h1>
+	<p class="mb-8 text-dark/80 dark:text-light/80">
+		Find the cheapest times to use lots of electricity. Log in with the same Telegram account
+		you use to chat with the bot.
+	</p>
 
-		{#if session.loaded && session.me}
-			<Text>Already signed in. <Link href="/">Go home →</Link></Text>
-		{:else}
+	{#if session.loaded && session.me}
+		<p>
+			Already signed in.
+			<a class="text-primary-600 dark:text-primary-400 underline" href="/">Go home →</a>
+		</p>
+	{:else}
+		<div class="flex flex-col items-center gap-4">
 			<div bind:this={widgetContainer}></div>
 			{#if error}
-				<Alert color="danger" title="Login failed">{error}</Alert>
+				<p class="text-sm text-danger-700 dark:text-danger-400">Login failed: {error}</p>
 			{/if}
-		{/if}
-	</Stack>
+		</div>
+	{/if}
 </section>

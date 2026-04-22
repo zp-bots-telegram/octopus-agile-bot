@@ -1,22 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import {
-		Alert,
-		Button,
-		Card,
-		CardBody,
-		CardHeader,
-		CardTitle,
-		Field,
-		HStack,
-		Heading,
-		Input,
-		Link,
-		NumberInput,
-		PasswordInput,
-		Stack,
-		Text
-	} from '@immich/ui';
+	import { Alert, Button, Card, CardBody, CardHeader, CardTitle } from '@immich/ui';
 	import { api, ApiError, type RegionResp } from '$lib/api';
 
 	let current = $state<RegionResp | null>(null);
@@ -149,9 +133,9 @@
 	});
 </script>
 
-<Stack gap={4}>
-	<Heading tag="h2" size="medium">Settings</Heading>
+<h2 class="mb-4 text-xl font-semibold">Settings</h2>
 
+<div class="space-y-4">
 	{#if error}
 		<Alert color="danger">{error}</Alert>
 	{/if}
@@ -164,34 +148,40 @@
 			<CardTitle>DNO region</CardTitle>
 		</CardHeader>
 		<CardBody>
-			<Stack gap={4}>
-				{#if current}
-					<Text>
-						Currently <strong>{current.region}</strong> — {current.region_name}
-					</Text>
-				{:else}
-					<Text color="muted">No region set yet.</Text>
-				{/if}
+			{#if current}
+				<p class="mb-4 text-sm text-dark/80 dark:text-light/80">
+					Currently <strong>{current.region}</strong> — {current.region_name}
+				</p>
+			{:else}
+				<p class="mb-4 text-sm text-dark/80 dark:text-light/80">No region set yet.</p>
+			{/if}
 
-				<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
-					<Field label="Postcode">
-						<Input bind:value={postcode} placeholder="SW1A 1AA" />
-					</Field>
-					<Button onclick={savePostcode}>Look up</Button>
+			<div class="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
+				<label class="text-sm">
+					<span class="text-dark/80 dark:text-light/80">Postcode</span>
+					<input
+						class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1 uppercase"
+						bind:value={postcode}
+						placeholder="SW1A 1AA"
+					/>
+				</label>
+				<Button onclick={savePostcode}>Look up</Button>
+			</div>
+
+			<details class="text-sm text-dark/80 dark:text-light/80">
+				<summary class="cursor-pointer">…or set the letter directly</summary>
+				<div class="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
+					<label>
+						<span class="text-dark/80 dark:text-light/80">Letter (A–P)</span>
+						<input
+							class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1 uppercase"
+							bind:value={letter}
+							maxlength="1"
+						/>
+					</label>
+					<Button variant="outline" color="secondary" onclick={saveLetter}>Save</Button>
 				</div>
-
-				<details class="text-sm">
-					<summary class="cursor-pointer text-dark/80 dark:text-light/80">
-						…or set the letter directly
-					</summary>
-					<div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-end">
-						<Field label="Letter (A–P)">
-							<Input bind:value={letter} maxlength={1} />
-						</Field>
-						<Button variant="outline" color="secondary" onclick={saveLetter}>Save</Button>
-					</div>
-				</details>
-			</Stack>
+			</details>
 		</CardBody>
 	</Card>
 
@@ -200,40 +190,44 @@
 			<CardTitle>Price alert</CardTitle>
 		</CardHeader>
 		<CardBody>
-			<Stack gap={3}>
-				<Text color="muted">
-					I'll message you ~10 minutes before a half-hour slot drops below this threshold
-					(inc VAT, p/kWh). Use <strong>0</strong> to alert only on negative prices.
-				</Text>
+			<p class="mb-3 text-sm text-dark/80 dark:text-light/80">
+				I'll message you ~10 minutes before a half-hour slot drops below this threshold
+				(inc VAT, p/kWh). Use <strong>0</strong> to alert only on negative prices.
+			</p>
 
-				{#if alertError}
-					<Alert color="danger">{alertError}</Alert>
+			{#if alertError}
+				<Alert class="mb-3" color="danger">{alertError}</Alert>
+			{/if}
+			{#if alertSaved}
+				<Alert class="mb-3" color="success">Saved.</Alert>
+			{/if}
+
+			<p class="mb-3 text-sm">
+				Currently:
+				{#if alertEnabled}
+					<strong>on</strong> — threshold {alertThreshold.toFixed(2)} p/kWh
+				{:else}
+					<strong>off</strong>
 				{/if}
-				{#if alertSaved}
-					<Alert color="success">Saved.</Alert>
+			</p>
+
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] items-end">
+				<label class="text-sm">
+					<span class="text-dark/80 dark:text-light/80">Threshold (p/kWh)</span>
+					<input
+						class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+						type="number"
+						step="0.1"
+						bind:value={alertThreshold}
+					/>
+				</label>
+				<Button onclick={saveAlert}>
+					{alertEnabled ? 'Update' : 'Enable'}
+				</Button>
+				{#if alertEnabled}
+					<Button color="danger" variant="outline" onclick={disableAlert}>Disable</Button>
 				{/if}
-
-				<Text>
-					Currently:
-					{#if alertEnabled}
-						<strong>on</strong> — threshold {alertThreshold.toFixed(2)} p/kWh
-					{:else}
-						<strong>off</strong>
-					{/if}
-				</Text>
-
-				<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] items-end">
-					<Field label="Threshold (p/kWh)">
-						<NumberInput bind:value={alertThreshold} step={0.1} />
-					</Field>
-					<Button onclick={saveAlert}>
-						{alertEnabled ? 'Update' : 'Enable'}
-					</Button>
-					{#if alertEnabled}
-						<Button color="danger" variant="outline" onclick={disableAlert}>Disable</Button>
-					{/if}
-				</div>
-			</Stack>
+			</div>
 		</CardBody>
 	</Card>
 
@@ -242,47 +236,58 @@
 			<CardTitle>Octopus account</CardTitle>
 		</CardHeader>
 		<CardBody>
-			<Stack gap={3}>
-				<Text color="muted">
-					Link your Octopus account to unlock account-scoped features (current tariff,
-					consumption history). Find your API key and account number at
-					<Link
-						href="https://octopus.energy/dashboard/new/accounts/personal-details/api-access"
-					>
-						octopus.energy → API access
-					</Link>.
-				</Text>
+			<p class="mb-3 text-sm text-dark/80 dark:text-light/80">
+				Link your Octopus account to unlock account-scoped features (current tariff,
+				consumption history). Find your API key and account number at
+				<a
+					class="text-primary-600 dark:text-primary-400 underline"
+					target="_blank"
+					rel="noreferrer"
+					href="https://octopus.energy/dashboard/new/accounts/personal-details/api-access"
+				>
+					octopus.energy → API access
+				</a>.
+			</p>
 
-				{#if octopusError}
-					<Alert color="danger">{octopusError}</Alert>
-				{/if}
-				{#if octopusSaved}
-					<Alert color="success">Saved.</Alert>
-				{/if}
+			{#if octopusError}
+				<Alert class="mb-3" color="danger">{octopusError}</Alert>
+			{/if}
+			{#if octopusSaved}
+				<Alert class="mb-3" color="success">Saved.</Alert>
+			{/if}
 
-				{#if octopusLinked}
-					<Text>
-						Linked: <strong>{octopusAccount}</strong>
-						{#if octopusInfo}
-							— tariff {octopusInfo.current_tariff || 'unknown'}, MPAN
-							{octopusInfo.mpan || '—'}
-						{/if}
-					</Text>
-					<div>
-						<Button color="danger" variant="outline" onclick={unlinkOctopus}>Unlink</Button>
-					</div>
-				{:else}
-					<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
-						<Field label="Account number">
-							<Input bind:value={octopusAccount} placeholder="A-XXXXXXXX" />
-						</Field>
-						<Field label="API key">
-							<PasswordInput bind:value={octopusKey} placeholder="sk_live_…" />
-						</Field>
-						<Button onclick={linkOctopus}>Link</Button>
-					</div>
-				{/if}
-			</Stack>
+			{#if octopusLinked}
+				<p class="mb-3 text-sm">
+					Linked: <strong>{octopusAccount}</strong>
+					{#if octopusInfo}
+						— tariff {octopusInfo.current_tariff || 'unknown'}, MPAN
+						{octopusInfo.mpan || '—'}
+					{/if}
+				</p>
+				<Button color="danger" variant="outline" onclick={unlinkOctopus}>Unlink</Button>
+			{:else}
+				<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
+					<label class="text-sm">
+						<span class="text-dark/80 dark:text-light/80">Account number</span>
+						<input
+							class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+							bind:value={octopusAccount}
+							placeholder="A-XXXXXXXX"
+						/>
+					</label>
+					<label class="text-sm">
+						<span class="text-dark/80 dark:text-light/80">API key</span>
+						<input
+							class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+							type="password"
+							autocomplete="off"
+							bind:value={octopusKey}
+							placeholder="sk_live_…"
+						/>
+					</label>
+					<Button onclick={linkOctopus}>Link</Button>
+				</div>
+			{/if}
 		</CardBody>
 	</Card>
-</Stack>
+</div>

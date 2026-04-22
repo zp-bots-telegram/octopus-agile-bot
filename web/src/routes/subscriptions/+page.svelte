@@ -1,20 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import {
-		Alert,
-		Button,
-		Card,
-		CardBody,
-		CardHeader,
-		CardTitle,
-		Field,
-		HStack,
-		Heading,
-		Input,
-		NumberInput,
-		Stack,
-		Text
-	} from '@immich/ui';
+	import { Alert, Button, Card, CardBody, CardHeader, CardTitle } from '@immich/ui';
 	import { api, ApiError, type Subscription } from '$lib/api';
 
 	let sub = $state<Subscription>(null);
@@ -60,9 +46,9 @@
 	onMount(load);
 </script>
 
-<Stack gap={4}>
-	<Heading tag="h2" size="medium">Daily cheapest-window notification</Heading>
+<h2 class="mb-4 text-xl font-semibold">Daily cheapest-window notification</h2>
 
+<div class="space-y-4">
 	{#if error}
 		<Alert color="danger">{error}</Alert>
 	{/if}
@@ -75,26 +61,35 @@
 			<CardTitle>Subscription</CardTitle>
 		</CardHeader>
 		<CardBody>
-			<Stack gap={4}>
-				<Text color="muted">
-					Every day at the chosen local time, the bot will message you with the cheapest window
-					of the given length over the next 24 hours.
-				</Text>
-				<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
-					<Field label="Window length (minutes)">
-						<NumberInput bind:value={durationMinutes} min={30} step={30} />
-					</Field>
-					<Field label="Notify at (HH:MM local)">
-						<Input bind:value={notifyAtLocal} />
-					</Field>
-					<HStack gap={2}>
-						<Button onclick={save}>Save</Button>
-						{#if sub}
-							<Button color="danger" variant="outline" onclick={remove}>Remove</Button>
-						{/if}
-					</HStack>
+			<p class="mb-4 text-sm text-dark/80 dark:text-light/80">
+				Every day at the chosen local time, the bot will message you with the cheapest window
+				of the given length over the next 24 hours.
+			</p>
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
+				<label class="text-sm">
+					<span class="text-dark/80 dark:text-light/80">Window length (minutes)</span>
+					<input
+						class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+						type="number"
+						min="30"
+						step="30"
+						bind:value={durationMinutes}
+					/>
+				</label>
+				<label class="text-sm">
+					<span class="text-dark/80 dark:text-light/80">Notify at (HH:MM local)</span>
+					<input
+						class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+						bind:value={notifyAtLocal}
+					/>
+				</label>
+				<div class="flex gap-2">
+					<Button onclick={save}>Save</Button>
+					{#if sub}
+						<Button color="danger" variant="outline" onclick={remove}>Remove</Button>
+					{/if}
 				</div>
-			</Stack>
+			</div>
 		</CardBody>
 	</Card>
-</Stack>
+</div>

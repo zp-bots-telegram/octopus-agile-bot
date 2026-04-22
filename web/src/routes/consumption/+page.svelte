@@ -1,20 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import {
-		Alert,
-		Button,
-		Card,
-		CardBody,
-		CardHeader,
-		CardTitle,
-		Field,
-		HStack,
-		Heading,
-		Link,
-		Select,
-		Stack,
-		Text
-	} from '@immich/ui';
+	import { Alert, Button, Card, CardBody, CardHeader, CardTitle } from '@immich/ui';
 	import { api, ApiError } from '$lib/api';
 
 	type Point = { interval_start: string; interval_end: string; consumption_kwh: number };
@@ -24,19 +10,10 @@
 	let loading = $state(false);
 	let needLink = $state(false);
 
-	// Default: last 7 days, grouped by day for readability.
 	const fmtDay = (d: Date) => d.toISOString().slice(0, 10);
 	let from = $state(fmtDay(new Date(Date.now() - 7 * 86400_000)));
 	let to = $state(fmtDay(new Date()));
 	let groupBy = $state('day');
-
-	const groupOptions = [
-		{ value: '', label: 'Half-hourly' },
-		{ value: 'hour', label: 'Hourly' },
-		{ value: 'day', label: 'Daily' },
-		{ value: 'week', label: 'Weekly' },
-		{ value: 'month', label: 'Monthly' }
-	];
 
 	async function load() {
 		error = null;
@@ -63,13 +40,14 @@
 	onMount(load);
 </script>
 
-<Stack gap={4}>
-	<Heading tag="h2" size="medium">Consumption</Heading>
+<h2 class="mb-4 text-xl font-semibold">Consumption</h2>
 
+<div class="space-y-4">
 	{#if needLink}
 		<Alert color="warning" title="Link your Octopus account first">
-			Visit <Link href="/settings">Settings</Link> to link your account — we need your API key
-			and MPAN to query consumption.
+			Visit <a class="text-primary-600 dark:text-primary-400 underline" href="/settings">
+				Settings
+			</a> to link your account — we need your API key and MPAN to query consumption.
 		</Alert>
 	{:else}
 		{#if error}
@@ -82,23 +60,35 @@
 			</CardHeader>
 			<CardBody>
 				<div class="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] items-end">
-					<Field label="From">
+					<label class="text-sm">
+						<span class="text-dark/80 dark:text-light/80">From</span>
 						<input
-							class="w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+							class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
 							type="date"
 							bind:value={from}
 						/>
-					</Field>
-					<Field label="To">
+					</label>
+					<label class="text-sm">
+						<span class="text-dark/80 dark:text-light/80">To</span>
 						<input
-							class="w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+							class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
 							type="date"
 							bind:value={to}
 						/>
-					</Field>
-					<Field label="Group by">
-						<Select bind:value={groupBy} options={groupOptions} />
-					</Field>
+					</label>
+					<label class="text-sm">
+						<span class="text-dark/80 dark:text-light/80">Group by</span>
+						<select
+							class="mt-1 w-full rounded border border-light-300 dark:border-dark-300 bg-transparent px-2 py-1"
+							bind:value={groupBy}
+						>
+							<option value="">Half-hourly</option>
+							<option value="hour">Hourly</option>
+							<option value="day">Daily</option>
+							<option value="week">Weekly</option>
+							<option value="month">Monthly</option>
+						</select>
+					</label>
 					<Button onclick={load} loading={loading}>Reload</Button>
 				</div>
 			</CardBody>
@@ -106,14 +96,18 @@
 
 		<Card>
 			<CardHeader>
-				<HStack class="justify-between w-full">
+				<div class="flex w-full items-center justify-between">
 					<CardTitle>Usage</CardTitle>
-					<Text color="muted" size="small">Total: {total.toFixed(2)} kWh</Text>
-				</HStack>
+					<span class="text-sm text-dark/60 dark:text-light/60">
+						Total: {total.toFixed(2)} kWh
+					</span>
+				</div>
 			</CardHeader>
 			<CardBody>
 				{#if points.length === 0}
-					<Text color="muted">No consumption recorded in this range.</Text>
+					<p class="text-sm text-dark/60 dark:text-light/60">
+						No consumption recorded in this range.
+					</p>
 				{:else}
 					<div class="overflow-x-auto">
 						<table class="w-full text-sm">
@@ -141,4 +135,4 @@
 			</CardBody>
 		</Card>
 	{/if}
-</Stack>
+</div>
