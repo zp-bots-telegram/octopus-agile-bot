@@ -1,46 +1,52 @@
 # Roadmap
 
-Post-v1 work, grouped by theme. Each item is designed-for in the v1 architecture
-(`internal/service` + `Notifier` interface): adding one should be mechanical, not a
-rewrite.
+What's still parked vs. what already shipped. Each open item is "designed-for" by the
+v1 architecture (`internal/service` + `Notifier`/`OctopusClient` interfaces), so adding
+one is mechanical rather than a rewrite.
 
-## Web UI
+## Shipped
 
-- [ ] Add `internal/httpapi` with HTTP handlers that call the same `service.Service` methods the Telegram bot uses.
-- [ ] Static frontend in `web/` (SvelteKit, matching the `discord-rpg-summariser` pattern) served by the Go binary.
-- [ ] Telegram Login Widget + HMAC-signed session cookie for auth — avoids a second identity system.
-- [ ] Push notifications: add a second `service.Notifier` implementation that fans out to active browser sessions (server-sent events or WebPush).
+- [x] **Web UI** — `internal/httpapi` plus a SvelteKit (runes) + @immich/ui + Tailwind v4 frontend, embedded into the binary via `//go:embed`. Same `service.Service` as the Telegram transport.
+- [x] **Web auth** — Login Widget for browsers, `window.Telegram.WebApp.initData` verification for the Mini App. HMAC-signed cookie sessions.
+- [x] **Mini App integration** — `setChatMenuButton` publishes the web URL as the bot's "Open app" chip; `/web` command sends both a Mini App button and a plain link; theme follows Telegram's `colorScheme` automatically inside the WebApp.
+- [x] **Postcode region lookup** — `/region <postcode>` resolves via the Octopus GSP endpoint.
+- [x] **Negative-price alerts** — `/alerts <threshold|off>`, dispatched ~10 min before the start of a contiguous run below threshold.
+- [x] **One-shot planner** — `/plan <duration> [by HH:MM]`, web Home card "Plan a charge now".
+- [x] **Consumption data** — Octopus API key linking (per-user, AES-256-GCM at rest), MPAN/serial captured from the account on link, consumption browser on `/consumption`.
+- [x] **Flexible time input** — every user-facing time field accepts `07:00` / `7:00` / `7am` / `7 pm` / `7:30 pm` and is normalised to `HH:MM` before storage.
+- [x] **Multi-arch Docker** — release workflow builds linux/amd64 + linux/arm64.
+- [x] **Dark mode** — bot icon + clock-ring artwork + Immich theme tokens auto-invert; uPlot axis colours bind to live CSS variables and re-render on theme toggle.
 
-Open questions:
-- Do we need a separate deployment for the web UI, or serve it from the same binary?
-- How do we rate-limit the public web endpoints?
+## Parked
 
-## More tariffs
+### More tariffs
 
-- [ ] Expose a `service.Tariff` abstraction so Go, Cosy, Tracker can reuse the cheapest-window logic.
-- [ ] Re-use `internal/octopus.Products()`; extend `LatestAgileProduct` to a generic `LatestProduct(kind)` or similar.
-- [ ] Decide whether users pick a tariff per chat, or we auto-detect from their account (needs meter-point data — see below).
+- [ ] Generalise `service.Tariff` so Go, Cosy, Tracker can reuse the cheapest-window logic.
+- [ ] Extend `internal/octopus.LatestAgileProduct` to a `LatestProduct(kind)` selector.
+- [ ] Decide UX: pick per chat, or auto-detect from the linked account's tariff?
 
-## Consumption data
+### Smart-plug / MQTT control
 
-- [ ] Add nullable `mpan`, `meter_serial` columns to `chats`.
-- [ ] Add `GET /v1/electricity-meter-points/{mpan}/meters/{serial}/consumption/` to `internal/octopus`.
-- [ ] Service methods: `ActualSpend(ctx, chatID, from, to)`, `MissedWindowAnalysis(...)`.
-- [ ] Requires the Octopus API key to have account scope — document the difference between public and account-scoped keys.
+- [ ] `Controller` port alongside `Notifier`: `Start(ctx, chatID, deviceID)`, `Stop(...)`.
+- [ ] Concrete impls in `internal/mqtt`, `internal/tapo`, `internal/shelly`, …
+- [ ] `/device add`, `/device link <plan-id> <device-id>` commands tying a charge plan to a physical switch.
 
-## Smart-plug / MQTT control
+### Push to web sessions
 
-- [ ] Define a `Controller` port alongside `Notifier`: `Start(ctx, chatID, deviceID)`, `Stop(ctx, chatID, deviceID)`.
-- [ ] Implementations in `internal/mqtt`, `internal/tapo`, `internal/shelly`, …
-- [ ] New commands `/device add`, `/device link <plan-id> <device-id>` to tie a charge plan to a physical switch.
+- [ ] Second `service.Notifier` impl that fans out to active browser sessions over server-sent events or WebPush. Right now charge-plan / alert messages only go to Telegram.
 
-## Packaging / ops
+### Octopus OAuth
 
-- [x] Multi-arch Docker image (linux/amd64, linux/arm64) — already covered by the release workflow.
-- [ ] Prometheus metrics endpoint (request counts, dispatch successes/failures).
-- [ ] Structured audit log of every outgoing message for debugging.
+We initially planned an OAuth flow for "connect my account". Octopus does not publish
+a public OAuth server; the standard third-party pattern is the personal API key
+which is what the Settings → Octopus account flow now uses (encrypted at rest with
+`ENCRYPTION_KEY`). If Octopus ever ships a real OAuth surface, swapping the key flow
+for OAuth is a `service.LinkOctopusAccount` change.
 
-## Hygiene
+### Ops / hygiene
 
-- [ ] Full golangci-lint pass in CI (currently an optional local step — once the config stabilises, make it required).
-- [ ] Replay-style integration test that drives `service.RefreshRates` then `service.DispatchTodaysChargePlans` against recorded Octopus fixtures.
+- [ ] Prometheus `/metrics` endpoint (rate-refresh outcomes, dispatch counts, alert volume).
+- [ ] Structured audit log of every outgoing message for debugging — currently emitted at debug-level only.
+- [ ] Make `golangci-lint run` mandatory in CI once the config stabilises.
+- [ ] Recorded-fixture medium test that drives `service.RefreshRates` → `DispatchTodaysChargePlans` against pinned Octopus payloads (complement to the live-tagged smoke test).
+- [ ] Scheduler test: `AddSubscriptionJob` / `RemoveSubscriptionJob` bookkeeping and the retry/backoff path of `runRefreshAndDispatch`.
