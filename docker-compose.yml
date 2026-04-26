@@ -1,0 +1,26 @@
+# Production-style compose: pull the published image, persist the SQLite database
+# under a named volume, read every secret from a `.env` file alongside this file.
+#
+# Get started:
+#   cp config.example.env .env
+#   # fill in TELEGRAM_BOT_TOKEN, OCTOPUS_API_KEY, SESSION_SECRET (>=16 bytes),
+#   #         ENCRYPTION_KEY (exactly 32 bytes), WEB_BASE_URL
+#   docker compose up -d
+#
+# Tail the logs:
+#   docker compose logs -f bot
+
+services:
+  bot:
+    image: ghcr.io/zp-bots-telegram/octopus-agile-bot:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/bot.db
+    ports:
+      - "${HTTP_LISTEN_PORT:-8080}:8080"
+    volumes:
+      - botdata:/data
+
+volumes:
+  botdata:

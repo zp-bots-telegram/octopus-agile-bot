@@ -92,26 +92,82 @@ Telegram setup details (one-time):
 1. Register the bot's domain with BotFather: `/setdomain` → pick the bot → paste the `WEB_BASE_URL` host. Required by both the Login Widget and the Mini App.
 2. Upload the bot icon (`assets/bot-icon.png`) via BotFather: `/setuserpic` → pick the bot.
 
-## Quick start
+## How the bot works
 
-Local-only run with the web UI on `:8080`:
+1. **Rate cache.** A scheduled job runs at 16:15 `Europe/London` (just after Octopus publishes the next-day Agile rates). It calls `LatestAgileProduct` then `StandardUnitRates` for every region used by any chat, and upserts the results into the `rates` table. On startup, the same refresh runs once so a fresh deploy isn't blank until tomorrow afternoon. If the publication is late, the refresher backs off exponentially up to ~1 h.
+2. **Charge-plan dispatch.** The moment a refresh succeeds, every enabled `charge_plan` is evaluated for tonight: the daily local-time window is converted to a UTC range (handling midnight crossover and DST), the cheapest contiguous slice of the requested duration is found, and a "start charging at …" message goes to the chat. A `(chat_id, plan_id, target_date)` log row prevents double-sends.
+3. **Price alerts.** Every minute the bot scans active alerts. For each, it groups the upcoming rates into contiguous runs below the user's threshold and notifies ~10 minutes before the start of any run that hasn't been notified yet (`(chat_id, run_start)` dedup).
+4. **Subscriptions.** One gocron job per active `/subscribe` row, registered/deregistered as users add or remove them; fires at the user's chosen local time and replies with the cheapest `<duration>` window in the next 24 h.
+5. **Telegram + Web share a service layer.** `internal/service` is the only thing that touches storage, the Octopus API, and outgoing notifications. Both transports are thin adapters; adding a third (e.g. push-to-browser) is mechanical.
+
+## Quick start with Docker
+
+The fastest way to run the bot.
 
 ```bash
 cp config.example.env .env
-# Fill in TELEGRAM_BOT_TOKEN, OCTOPUS_API_KEY, SESSION_SECRET, ENCRYPTION_KEY in .env
-make build
+# Fill in (see the table above):
+#   TELEGRAM_BOT_TOKEN, OCTOPUS_API_KEY
+#   SESSION_SECRET (≥ 16 bytes random)         — only if you want the web UI
+#   ENCRYPTION_KEY (exactly 32 bytes random)   — only if you want account linking
+#   WEB_BASE_URL (your public https://... URL) — only if you want the web UI
+docker compose up -d
+docker compose logs -f bot
+```
+
+The compose file pulls `ghcr.io/zp-bots-telegram/octopus-agile-bot:latest` and
+persists `/data/bot.db` under a named volume. To build the image locally instead
+(useful while iterating on the Dockerfile) use `docker compose -f
+docker-compose.dev.yml up --build`.
+
+Generating the secrets:
+
+```bash
+echo "SESSION_SECRET=$(head -c 48 /dev/urandom | base64 | tr -d '\n=')"  >> .env
+echo "ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64 | head -c 32)"   >> .env
+```
+
+The Telegram Login Widget and Mini App need a public HTTPS host. For development
+that's typically a tunnel — `cloudflared tunnel --url http://localhost:8080`,
+`ngrok http 8080`, or `sudo tailscale funnel --bg --https=443
+http://localhost:8080`. Take whatever HTTPS URL the tunnel prints, put it in
+`.env` as `WEB_BASE_URL`, and register the same domain with BotFather:
+
+```
+@BotFather → /setdomain → pick your bot → paste the host (no protocol, no path)
+```
+
+Without this step the Login Widget will render an empty box and the Mini App
+won't open.
+
+## Running without Docker
+
+```bash
+make build        # frontend + Go binary
 DATABASE_PATH=./data/bot.db ./bot
 ```
 
-The Telegram Login Widget needs a public HTTPS host — for dev, `cloudflared
-tunnel --url http://localhost:8080`, `ngrok http 8080`, or Tailscale Funnel are all
-fine. Whatever URL the tunnel prints, set as `WEB_BASE_URL` and register with
-BotFather's `/setdomain`.
+`make build` does both `npm ci && npm run build` in `web/` and `go build
+./cmd/bot`, then copies the static frontend into `internal/httpapi/webassets/`
+where `go:embed` picks it up. For Go-only changes during development use `make
+build-go`.
 
-Production: `docker build` (multi-arch via the release workflow) or pull the image
-from `ghcr.io/zp-bots-telegram/octopus-agile-bot`. Mount a volume at `/data` for
-the SQLite file. The release workflow tags semver / `{major}.{minor}` / sha /
-`latest`.
+## Production deployment
+
+The release workflow publishes a multi-arch image to `ghcr.io` on every
+`release-please` merge to `main`. Tags applied: `{semver}`, `{major}.{minor}`,
+`sha-{short}`, and `latest`. To pin a specific version edit
+`docker-compose.yml`:
+
+```yaml
+services:
+  bot:
+    image: ghcr.io/zp-bots-telegram/octopus-agile-bot:1.2.3
+```
+
+Restart policy is `unless-stopped`. The image runs as `nonroot` (UID 65532) on
+`distroless/static-debian12`, so the data volume needs to be writable by that
+UID — the named volume in compose handles this automatically.
 
 ## Development
 

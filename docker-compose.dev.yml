@@ -1,0 +1,24 @@
+# Dev-style compose: builds the image from the Dockerfile in this repo instead of
+# pulling from ghcr. Useful for testing local changes end-to-end through docker.
+#
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# For tight iteration on Go-only changes, prefer `make build && ./bot` directly so
+# you skip the docker build round-trip.
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_PATH: /data/bot.db
+    ports:
+      - "${HTTP_LISTEN_PORT:-8080}:8080"
+    volumes:
+      - botdata:/data
+
+volumes:
+  botdata:
