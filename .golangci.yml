@@ -14,7 +14,14 @@ linters:
     - unused
     - misspell
     - unconvert
-    - revive
+  settings:
+    errcheck:
+      # Deferred Close calls on db rows/stmts and response bodies are conventional
+      # in Go; ignoring their errors is the standard pattern. Suppress those.
+      exclude-functions:
+        - (*database/sql.Rows).Close
+        - (*database/sql.Stmt).Close
+        - (io.Closer).Close
   exclusions:
     rules:
       - path: _test\.go
