@@ -90,12 +90,6 @@ func (r *tgRecorder) last() tgCall {
 	return r.calls[len(r.calls)-1]
 }
 
-func (r *tgRecorder) count() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return len(r.calls)
-}
-
 type fakeOctopus struct{}
 
 func (fakeOctopus) LatestAgileProduct(context.Context) (service.ProductInfo, error) {

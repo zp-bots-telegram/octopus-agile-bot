@@ -74,7 +74,7 @@ func New(ctx context.Context, cfg *config.Loaded) (*App, error) {
 		DefaultRegion: cfg.DefaultRegion,
 	})
 
-	allow := cfg.Config.IsChatAllowed
+	allow := cfg.IsChatAllowed
 	handlers := telegram.NewHandlers(svc, allow, log, cfg.WebBaseURL)
 	handlers.Register(b)
 

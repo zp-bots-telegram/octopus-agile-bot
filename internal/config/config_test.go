@@ -90,7 +90,7 @@ func TestLoad_WebDefaults(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, ":8080", got.HTTPListenAddr)
 	assert.Equal(t, "http://localhost:8080", got.WebBaseURL)
-	assert.False(t, got.Config.OctopusOAuthEnabled())
+	assert.False(t, got.OctopusOAuthEnabled())
 }
 
 func TestLoad_SessionSecretTooShort(t *testing.T) {
@@ -117,5 +117,5 @@ func TestOctopusOAuthEnabled(t *testing.T) {
 	t.Setenv("OCTOPUS_OAUTH_AUTHORIZE_URL", "https://x/auth")
 	got, err := Load()
 	require.NoError(t, err)
-	assert.True(t, got.Config.OctopusOAuthEnabled())
+	assert.True(t, got.OctopusOAuthEnabled())
 }
