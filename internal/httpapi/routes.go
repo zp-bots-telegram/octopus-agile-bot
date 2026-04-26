@@ -251,7 +251,7 @@ func (s *Server) handlePlanNow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"window":          toWindowJSON(sug.Window),
+		"window":           toWindowJSON(sug.Window),
 		"start_in_seconds": int(sug.StartIn.Seconds()),
 	})
 }

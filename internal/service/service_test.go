@@ -149,10 +149,10 @@ func TestSetSubscription_ValidatesTime(t *testing.T) {
 
 func TestParseUserTime(t *testing.T) {
 	cases := []struct {
-		in       string
-		wantH    int
-		wantM    int
-		wantErr  bool
+		in      string
+		wantH   int
+		wantM   int
+		wantErr bool
 	}{
 		{"07:00", 7, 0, false},
 		{"7:00", 7, 0, false},
