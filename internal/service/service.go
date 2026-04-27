@@ -610,14 +610,21 @@ func (s *Service) LinkOctopusAccount(ctx context.Context, chatID int64, accountN
 	if s.cipher == nil || s.links == nil {
 		return AccountInfo{}, ErrLinkNotConfigured
 	}
-	if strings.TrimSpace(accountNumber) == "" || strings.TrimSpace(apiKey) == "" {
+	// Trim whitespace before any further use — it's very common for users pasting
+	// from the Octopus dashboard to pick up a leading/trailing space, and previously
+	// we validated the trimmed value but used the un-trimmed strings against the
+	// API and the cipher, which caused false 401s and stored a key that didn't
+	// match what the user thought they pasted.
+	accountNumber = strings.TrimSpace(accountNumber)
+	apiKey = strings.TrimSpace(apiKey)
+	if accountNumber == "" || apiKey == "" {
 		return AccountInfo{}, fmt.Errorf("%w: account number and api key are both required", ErrLinkInvalid)
 	}
 	// Make sure the chat row exists (UpsertChatRegion is a no-op on the region if the
 	// chat is new — we use the default region as a placeholder until the user sets
 	// one). This is a safety net for web-only flows where the chat was created by
 	// the login callback but no region is set yet.
-	if chat, ok, err := s.chats.GetChat(ctx, chatID); err != nil {
+	if _, ok, err := s.chats.GetChat(ctx, chatID); err != nil {
 		return AccountInfo{}, err
 	} else if !ok {
 		if s.defaultRg == "" {
@@ -626,7 +633,6 @@ func (s *Service) LinkOctopusAccount(ctx context.Context, chatID int64, accountN
 		if err := s.chats.UpsertChatRegion(ctx, chatID, s.defaultRg); err != nil {
 			return AccountInfo{}, err
 		}
-		_ = chat
 	}
 
 	info, err := s.octopus.AccountWithKey(ctx, apiKey, accountNumber)
