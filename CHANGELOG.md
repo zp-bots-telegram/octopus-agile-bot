@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/zp-bots-telegram/octopus-agile-bot/compare/v1.0.0...v1.0.1) (2026-04-27)
+
+
+### Bug Fixes
+
+* trim whitespace from account number + api key on link ([9db8247](https://github.com/zp-bots-telegram/octopus-agile-bot/commit/9db8247a3a72aa1f26e58bf44784a230bc7c2536))
+
 ## 1.0.0 (2026-04-26)
 
 
