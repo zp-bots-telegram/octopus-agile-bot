@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/zp-bots-telegram/octopus-agile-bot/compare/v1.0.1...v1.0.2) (2026-04-27)
+
+
+### Bug Fixes
+
+* rebuild lockfile against npm 11.13 + switch dockerfile to node:24-slim ([1269b27](https://github.com/zp-bots-telegram/octopus-agile-bot/commit/1269b27601260d737046c044a131c32d5f564370))
+
 ## [1.0.1](https://github.com/zp-bots-telegram/octopus-agile-bot/compare/v1.0.0...v1.0.1) (2026-04-27)
 
 
