@@ -23,7 +23,9 @@ RUN go build \
         -o /out/bot \
         ./cmd/bot
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM alpine:3.20
+RUN addgroup -S -g 1000 bot && adduser -S -u 1000 -G bot bot \
+ && mkdir -p /data && chown bot:bot /data
 COPY --from=build /out/bot /bot
-USER nonroot
+USER bot
 ENTRYPOINT ["/bot"]
