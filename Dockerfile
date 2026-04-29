@@ -24,7 +24,8 @@ RUN go build \
         ./cmd/bot
 
 FROM alpine:3.20
-RUN addgroup -S -g 1000 bot && adduser -S -u 1000 -G bot bot \
+RUN apk add --no-cache tzdata \
+ && addgroup -S -g 1000 bot && adduser -S -u 1000 -G bot bot \
  && mkdir -p /data && chown bot:bot /data
 COPY --from=build /out/bot /bot
 USER bot
