@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4](https://github.com/zp-bots-telegram/octopus-agile-bot/compare/v1.0.3...v1.0.4) (2026-04-29)
+
+
+### Bug Fixes
+
+* install tzdata in alpine runtime image ([dabb135](https://github.com/zp-bots-telegram/octopus-agile-bot/commit/dabb1359088814ef3201d1b9eb5ea248fac3ca4a))
+
 ## [1.0.3](https://github.com/zp-bots-telegram/octopus-agile-bot/compare/v1.0.2...v1.0.3) (2026-04-29)
 
 
