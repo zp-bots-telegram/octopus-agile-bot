@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/zp-bots-telegram/octopus-agile-bot/compare/v1.0.2...v1.0.3) (2026-04-29)
+
+
+### Bug Fixes
+
+* switch runtime image to alpine with uid 1000 ([70dd140](https://github.com/zp-bots-telegram/octopus-agile-bot/commit/70dd1407990ab108e05d94ea735720f3da4d1b0a))
+
 ## [1.0.2](https://github.com/zp-bots-telegram/octopus-agile-bot/compare/v1.0.1...v1.0.2) (2026-04-27)
 
 
